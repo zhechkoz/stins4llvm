@@ -45,16 +45,16 @@ cfile=${arrC[${#arrC[@]}-1]}
 arrC=(${cfile//./ })
 cfile=${arrC[0]}
 
-clang -c -emit-llvm ${c} -o "$build$cfile.bc"
+clang-3.9 -c -emit-llvm ${c} -o "$build$cfile.bc"
 exitIfFail $?
 
 LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libssl.so \
-opt -load "${build}libStateProtectorPass.so" -callpath -ff $filename <"${build}${cfile}.bc"> "${build}${cfile}-inst.bc"
+opt-3.9 -load "${build}libStateProtectorPass.so" -stateProtect -ff $filename <"${build}${cfile}.bc"> "${build}${cfile}-inst.bc"
 exitIfFail $?
 
-llc -filetype=obj "${build}${cfile}-inst.bc"
+llc-3.9 -filetype=obj "${build}${cfile}-inst.bc"
 exitIfFail $?
 
-g++ -rdynamic "${build}${cfile}-inst.o" "${build}libcheck.o" "${build}crypto.o" -o "${build}${cfile}-rewritten" -L/usr/lib/x86_64-linux-gnu/ -lssl -lcrypto
+g++ -rdynamic "${build}${cfile}-inst.o" "${build}libcheck.o" -o "${build}${cfile}-rewritten"
 exitIfFail $?
 

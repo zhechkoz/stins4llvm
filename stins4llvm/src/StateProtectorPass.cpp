@@ -23,8 +23,7 @@ namespace {
 	const std::string CHECKFUNC = "check" , REPORTFUNC = "report";
 	const std::string USAGE = "Specify file containing new line separated functions to protect.";
 	
-	//const cl::opt<std::string> FILENAME("ff", cl::desc(USAGE));
-	const std::string FILENAME = "../results/funcsToCheck";
+	const cl::opt<std::string> FILENAME("ff", cl::desc(USAGE.c_str()));
 	
 	struct StateProtectorPass : public ModulePass {
 		static char ID;
@@ -95,11 +94,11 @@ namespace {
 	
 	bool StateProtectorPass::runOnModule(Module &M) {    	
 	  	
-	  	return true;		
-	  }
+	  	return false;		
+	}
 }
 
 char StateProtectorPass::ID = 0;
 
-RegisterPass<StateProtectorPass> X("state", "State Protector Pass", false, false);
+RegisterPass<StateProtectorPass> X("stateProtect", "State Protector Pass", false, false);
 
