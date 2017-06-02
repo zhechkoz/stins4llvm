@@ -1,7 +1,8 @@
 import argparse
 from tempfile import TemporaryDirectory
-from subprocess import run, STDOUT
+from subprocess import run, STDOUT, PIPE
 from os import path
+import json
 
 # small config section
 OPT  = path.expanduser("~/build/llvm/Release/bin/opt")
@@ -15,19 +16,54 @@ def run_KLEE(functionname, bcfile):
     with TemporaryDirectory() as tmpdir:
         run([OPT, "-load", MACKEOPT,
              "-encapsulatesymbolic", "--encapsulatedfunction=" + functionname,
-             bcfile, "-o", path.join(tmpdir, "prepared.bc")], check=True)
+             bcfile, "-o", path.join(tmpdir, "prepared.bc")], stdout=PIPE, stderr=PIPE, check=True)
         run([KLEE,
              "--entry-point=macke_" + functionname + "_main", "--max-time=300", "-watchdog",
              "--posix-runtime", "--libc=uclibc",
              "--only-output-states-covering-new", path.join(tmpdir, "prepared.bc")
-            ], check=True)
+            ], stdout=PIPE, stderr=PIPE, check=True)
         print()
 
         # show the details of all test cases
-        run(["for ktest in "+ path.join(tmpdir, "klee-last") +"/*.ktest; do " + KTEST + " --write-ints $ktest; echo ""; done"], shell=True)
-
+        p = run(["for ktest in "+ path.join(tmpdir, "klee-last") +"/*.ktest; do " + KTEST + " --write-ints $ktest; echo ""; done"], stdout=PIPE, shell=True)
+        
+        out = p.stdout.decode('utf-8')
+        print(parse(out))
+        
         # input("Press enter to delete " + tmpdir)
 
+def parse(kleeOutput):
+	output = {}
+	kleeOutput = kleeOutput.split('\n\n')[:-1]
+	i = 0
+	
+	for testCase in kleeOutput:
+		testCase = testCase.split('\n')[2:]
+			
+		numObjects = int(testCase[0].split(':')[1])
+		
+		if numObjects > 0 and testCase[-3].split(':')[2].strip() != "'macke_result'":
+			continue
+		
+		output[str(i)] = {}
+		output[str(i)]["parameter"] = []
+		for j in range(1, numObjects - 1):
+			if "macke_sizeof" in testCase[1+j*3].split(':')[2].strip():
+				continue
+			parameter = testCase[1+j*3+2].split(':')[2].strip()
+			parameter = parameter.replace("'", "")
+				
+			output[str(i)]["parameter"] += [parameter]  
+		
+		result = testCase[-1].split(':')[2].strip()
+		result = result.replace("'", "")
+					
+		output[str(i)]["result"] = result
+		
+		i += 1					
+	return json.dumps(output)
+	
+	
 
 if __name__ == '__main__':
     # Some argument parsing
@@ -38,3 +74,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     run_KLEE(args.functionname, args.bcfile.name)
+    

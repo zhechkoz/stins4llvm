@@ -8,7 +8,7 @@
 const std::string libcStartMain = "__libc_start_main";
 
 // Calculate backtrace
-std::vector<std::string> stackTrace() {
+extern "C" bool checkTrace(std::string functionName) {
 	std::vector<std::string> trace;
 	void *array[STACKTRACE];
   	size_t size;
@@ -41,16 +41,12 @@ std::vector<std::string> stackTrace() {
   		trace.push_back(funcName);
   	}
   	
-  	std::reverse(trace.begin(), trace.end());
+  	bool functionOnStack = std::find(trace.begin(), trace.end(), functionName) != trace.end();
   	
-	return trace;
+  	return functionOnStack;
 } 
 
-extern "C" bool check(char *validHash, bool hasToCheck) {
-	return true;
-}
-
-extern "C" void report(bool valid) {
+extern "C" void report() {
 	
 }
 

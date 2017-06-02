@@ -1,6 +1,6 @@
 import argparse
 from tempfile import TemporaryDirectory
-from subprocess import run
+from subprocess import run, PIPE
 from os import path
 from syminputBC import run_KLEE
 
@@ -25,13 +25,13 @@ if __name__ == '__main__':
 		# compile each c file seperately
 		for cfile in args.cfile:
 			bcfile = path.join(tmpdir, cfile.name[:-1] + 'bc')
-			run([CLANG, '-c', '-g', '-O0', '-emit-llvm', cfile.name, '-o', bcfile], check=True)
+			run([CLANG, '-c', '-g', '-O0', '-emit-llvm', cfile.name, '-o', bcfile], stdout=PIPE, stderr=PIPE, check=True)
 			bcfiles.append(bcfile)
 
 		# and link everything together
 		run([LINKR] + bcfiles + ['-o', path.join(tmpdir, 'everything.bc')], check=True)
-
+		
 		# Finally run KLEE on it
 		run_KLEE(args.functionname, path.join(tmpdir, "everything.bc"))
-
+		
 		# input("Press enter to delete " + tmpdir)

@@ -1,6 +1,27 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
+int max(int a, int b, int c) {
+  if (a > b) {
+    if (a > c) {
+      // a > b && a > c
+      return a;
+    } else {
+      // a > b && a <= c;
+      return c;
+    }
+  } else {
+    if (b > c) {
+      // b >= a && b > c
+      return b;
+    } else {
+      // b >= a && b <= c
+      return c;
+    }
+  }
+}
+
 void InterestingProcedure() {
     printf("\t This is an interesting procedure\n");
 }
