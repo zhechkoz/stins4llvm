@@ -2,6 +2,13 @@
 #include <string.h>
 #include <stdlib.h>
 
+char* isValidLicenseKey(const char* input) {
+  if(strcmp(input, "ValidLicenseKey") == 0) {
+  return "V";
+  }
+  return "@";
+}
+
 int max(int a, int b, int c) {
   if (a > b) {
     if (a > c) {
@@ -22,45 +29,40 @@ int max(int a, int b, int c) {
   }
 }
 
+int min(int a, int b, int c) {
+  if (a < b) {
+    if (a < c) {
+      // a < b && a < c
+      return a;
+    } else {
+      // a < b && a <= c;
+      return c;
+    }
+  } else {
+    if (b < c) {
+      // b >= a && b > c
+      return b;
+    } else {
+      // b >= a && b <= c
+      return c;
+    }
+  }
+}
+
+
 void InterestingProcedure() {
     printf("\t This is an interesting procedure\n");
 }
 
-void a();
-void b();
-void c();
-void d();
-void e();
-
-void a() {
-	b();
-}
-
-void b() {
-	c();
-}
-
-void c() {
-	d();
-}
-
-void d() {
-	e();
-}
-
-void e() {
-	InterestingProcedure();
-}
 void print(char *message) {
 	InterestingProcedure();
     printf("%s\n", message);
 }
 
 int main(int argc, char** argv) {
-	char inp[8];
+
 	InterestingProcedure();
-	a();
-	gets(inp);
+	
     return 0;
 }
 

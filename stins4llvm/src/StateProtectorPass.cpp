@@ -6,6 +6,7 @@
 #include "llvm/IR/IRBuilder.h"
 
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/APFloat.h"
 
 #include <Python.h>
 #include <json/value.h>
@@ -20,6 +21,7 @@
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graphviz.hpp>
+#include <boost/lexical_cast.hpp>
 
 #define WARNING "\033[43m\033[1mWARNING:\033[0m "
 #define ERROR "\033[101m\033[1mERROR:\033[0m "
@@ -43,9 +45,11 @@ namespace {
 	
 	struct StateProtectorPass : public ModulePass {
 		static char ID;
-		std::vector<std::string> functionsToProtect = {"max"};
+		std::vector<std::string> functionsToProtect = {"isValidLicenseKey"};
 		const std::string program = "/home/zhechev/Developer/SIP/phase3/stins4llvm/src/InterestingProgram.c";
 		const std::string syminput = "../Docker/klee/syminputC.py";
+		
+		Type *x86_FP80Ty, *FP128Ty;
 		
 		Json::Value pureFunctionsTestCases;
 		 
@@ -55,9 +59,16 @@ namespace {
 		bool runOnModule(Module &M) override;	
 		
 		Json::Value parse(char * input);
+		
+		Value* createLLVMValue(IRBuilder<> *builder, std::string value, Type *type);
+		void insertProtect(Module &M, Function *checker, Function *checkee);
     };
     
 	bool StateProtectorPass::doInitialization(Module &M) {
+	
+	    x86_FP80Ty = Type::getX86_FP80Ty(M.getContext()); 
+	    FP128Ty = Type::getFP128Ty(M.getContext());
+	    
 		FILE *file;
     	int argc;
     	wchar_t **argv = new wchar_t*[3];
@@ -99,7 +110,7 @@ namespace {
 			read(out_pipe[0], buffer, MAX_LEN); /* read from pipe into buffer */
 
 			dup2(saved_stdout, STDOUT_FILENO);  /* reconnect stdout for testing */
-			
+			//errs() << buffer;
 			Json::Value currentFunctionTestCases = parse(buffer);
 			pureFunctionsTestCases[function] = currentFunctionTestCases;
 		}
@@ -168,30 +179,129 @@ namespace {
 		return g;
 	}
 	
-	void insertProtect(Module &M, Function *checker, Function *checkee) {
+	Value* StateProtectorPass::createLLVMValue(IRBuilder<> *builder, std::string value, Type *type) {
+		Value *output = nullptr;
+		
+		if (type->isPointerTy()) {
+			Type *content = type->getContainedType(0);
+			if (content->isIntegerTy(8)) {			// char* 
+				output = builder->CreateGlobalStringPtr(value);
+			} else {
+				errs() << ERROR << "Type ";
+				type->print(errs());
+				errs() << " cannot be resolved with the current implementation!\n";
+			}
+		} else if (type->isIntegerTy()) {
+			if (type->isIntegerTy(8)) {
+				output = builder->getInt8(value[0]);
+			} else if (type->isIntegerTy(16)) {
+				short castedShort = boost::lexical_cast<short>(value);
+				output = builder->getInt16(castedShort);
+			} else if (type->isIntegerTy(32)) {
+				int castedInt = boost::lexical_cast<int>(value);
+				output = builder->getInt32(castedInt);
+			} else if (type->isIntegerTy(64)) {
+				long castedInt = boost::lexical_cast<long>(value);
+				output = builder->getInt64(castedInt);
+			} else if (type->isIntegerTy(128)) {
+				long long castedInt = boost::lexical_cast<long long>(value);
+				output = builder->getIntN(128, castedInt);
+			} else {
+				errs() << ERROR << "Type ";
+				type->print(errs());
+				errs() << " cannot be resolved with the current implementation!\n";
+			}
+		} else if (type->isFloatingPointTy()) {
+			if (type->isFloatTy()) {
+				float castedFloat = boost::lexical_cast<float>(value);
+				output = ConstantFP::get(builder->getFloatTy(), castedFloat);
+			} else if (type->isDoubleTy()) {
+				double castedDouble = boost::lexical_cast<double>(value);
+				output = ConstantFP::get(builder->getDoubleTy(), castedDouble);
+			} else if (type->isX86_FP80Ty()) {
+				long double castedDouble = boost::lexical_cast<long double>(value);
+				output = ConstantFP::get(x86_FP80Ty, castedDouble);
+			} else if (type->isFP128Ty()) {
+				long double castedDouble = boost::lexical_cast<long double>(value);
+				output = ConstantFP::get(FP128Ty, castedDouble);
+			} 
+			
+			else {
+				errs() << ERROR << "Type ";
+				type->print(errs());
+				errs() << " cannot be resolved with the current implementation!\n";
+			}
+		}
+		
+		if (output == nullptr) {
+			errs() << ERROR << "No type could be resolved for value:" << value<< "\n";
+			exit(1);
+		}
+		
+		return output;
+	}
+	
+	void StateProtectorPass::insertProtect(Module &M, Function *checker, Function *checkee) {
+		
 		BasicBlock *firstBasicBlock = &checker->getEntryBlock();
 		BasicBlock *reportBlock = BasicBlock::Create(M.getContext(), "reportBlock", checker, firstBasicBlock);
-		BasicBlock *funcNotOnStack = BasicBlock::Create(M.getContext(), "funcNotOnStack", checker, reportBlock);
-		
-		
-		IRBuilder<> builder(funcNotOnStack);
-		
+		BasicBlock *funcNotOnStack = BasicBlock::Create(M.getContext(), "funcNotOnStack", checker, reportBlock);	
+		BasicBlock *funcOnStackTest = BasicBlock::Create(M.getContext(), "funcOnStackTest", checker, funcNotOnStack);
 		
 		std::vector<Value *> args;
-		args.push_back(builder.getInt32(42));
-		args.push_back(builder.getInt32(42));
-		args.push_back(builder.getInt32(42));
+		IRBuilder<> builder(funcOnStackTest);
+		Constant *stackFunction = M.getOrInsertFunction("checkTrace", 
+					FunctionType::get(Type::getInt1Ty(M.getContext()), Type::getInt8PtrTy(M.getContext()), false));
 		
+		std::string functionNameString = checkee->getName();
+		Value *functionName = builder.CreateGlobalStringPtr(functionNameString);
+		
+		args.push_back(functionName);
+		Value *stackCall = builder.CreateCall(stackFunction, args);
+		
+		Value *onStack = builder.getInt1(true);
+		Value *stackResult = builder.CreateICmpEQ(onStack, stackCall);
+		builder.CreateCondBr(stackResult, firstBasicBlock, funcNotOnStack);
+		
+		builder.SetInsertPoint(funcNotOnStack);
+		
+		args.clear();
+		int i = 0;
+		for (auto &argument : checkee->getArgumentList()) {
+			Value *arg = createLLVMValue(&builder, pureFunctionsTestCases[checkee->getName()]["3"]["parameter"][i].asString(), argument.getType());
+			args.push_back(arg);
+			i++;
+		}
 		
 		Value *checkeeCall = builder.CreateCall(checkee, args);
-		Value *checkerResult = builder.CreateICmpNE(builder.getInt32(42), checkeeCall);
-		builder.CreateCondBr(checkerResult, firstBasicBlock, reportBlock);
+		Value *result = createLLVMValue(&builder, pureFunctionsTestCases[checkee->getName()]["3"]["result"].asString(), checkee->getReturnType());
+		Value *checkerResult;
+		
+		if (checkee->getReturnType()->isIntegerTy()) {
+			checkerResult = builder.CreateICmpNE(result, checkeeCall);
+		} else if (checkee->getReturnType()->isFloatingPointTy()) {
+			checkerResult = builder.CreateFCmpONE(result, checkeeCall);
+		} else if (checkee->getReturnType()->isPointerTy() &&  
+					checkee->getReturnType()->getContainedType(0)->isIntegerTy(8)) { // char *
+			Type *argsTypes[2] = {Type::getInt8PtrTy(M.getContext()), Type::getInt8PtrTy(M.getContext())};
+			
+			Constant *strcmpFunction = M.getOrInsertFunction("cmpstr", 
+					FunctionType::get(Type::getInt1Ty(M.getContext()), ArrayRef<Type *>(argsTypes), false));
+			
+			args.clear();
+			args.push_back(result);
+			args.push_back(checkeeCall);		
+			result = builder.CreateCall(strcmpFunction, args);
+			checkerResult = builder.CreateICmpNE(result, builder.getInt1(false));
+		}
+		
+		builder.CreateCondBr(checkerResult, reportBlock, firstBasicBlock);
 		
 		builder.SetInsertPoint(reportBlock);
 		Constant *reportFunction = M.getOrInsertFunction("report", 
 					FunctionType::get(Type::getVoidTy(M.getContext()), false));
 		builder.CreateCall(reportFunction);
-		builder.CreateUnreachable();
+		builder.CreateBr(firstBasicBlock);
 	}
 	
 	bool StateProtectorPass::runOnModule(Module &M) { 
@@ -234,7 +344,7 @@ namespace {
 				v = *adj_vp.first;
 				Function *checkeeFunction = g[v].function;
 				errs() << "\t" << checkeeFunction->getName() << "\n"; 
-				//TODO: Insert checker
+				// Insert checker
 				insertProtect(M, checkerFunction, checkeeFunction);
 			}
 		}

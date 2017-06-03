@@ -1,14 +1,22 @@
 #include <algorithm>
 #include <cstring>
+#include <string>
 #include <iostream>
 #include <execinfo.h>
+#include <unistd.h>
 
 #define STACKTRACE 256
 
 const std::string libcStartMain = "__libc_start_main";
 
+extern "C" bool cmpstr(char *first, char *second) {
+	puts(first);
+	puts(second);
+	return std::strcmp(first, second);
+}
+
 // Calculate backtrace
-extern "C" bool checkTrace(std::string functionName) {
+extern "C" bool checkTrace(char *functionName) {
 	std::vector<std::string> trace;
 	void *array[STACKTRACE];
   	size_t size;
@@ -47,6 +55,16 @@ extern "C" bool checkTrace(std::string functionName) {
 } 
 
 extern "C" void report() {
-	
+	puts("Hash corrupted!");
+	/*pid_t pid = fork();
+	if (pid == 0) {
+		
+		puts("exited");
+		while(1) {
+			usleep(100);
+		}
+		
+		exit(1);
+	} */
 }
 
