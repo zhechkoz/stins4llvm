@@ -24,7 +24,7 @@ if __name__ == '__main__':
 
 		# compile each c file seperately
 		for cfile in args.cfile:
-			bcfile = path.join(tmpdir, cfile.name[:-1] + 'bc')
+			bcfile = path.join(tmpdir, path.basename(cfile.name)[:-1] + 'bc')
 			run([CLANG, '-c', '-g', '-O0', '-emit-llvm', cfile.name, '-o', bcfile], stdout=PIPE, stderr=PIPE, check=True)
 			bcfiles.append(bcfile)
 

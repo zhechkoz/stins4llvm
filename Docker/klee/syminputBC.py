@@ -22,14 +22,14 @@ def run_KLEE(functionname, bcfile):
              "--posix-runtime", "--libc=uclibc",
              "--only-output-states-covering-new", path.join(tmpdir, "prepared.bc")
             ], stdout=PIPE, stderr=PIPE, check=True)
-        print()
 
         # show the details of all test cases
         p = run(["for ktest in "+ path.join(tmpdir, "klee-last") +"/*.ktest; do " + KTEST + " --write-ints $ktest; echo ""; done"], stdout=PIPE, shell=True)
         
         out = p.stdout.decode('utf-8')
-        print(parse(out))
         
+        with open(path.join('/tmp', 'klee.json'), 'w') as f:
+        	f.write(parse(out))
         # input("Press enter to delete " + tmpdir)
 
 def parse(kleeOutput):
@@ -61,7 +61,7 @@ def parse(kleeOutput):
 		output[str(i)]["result"] = result
 		
 		i += 1					
-	return json.dumps(output)
+	return json.dumps(output, ensure_ascii=False).replace("\\\\x", "\\u00")
 	
 	
 

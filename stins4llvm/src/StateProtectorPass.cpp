@@ -49,7 +49,7 @@ namespace {
 		const std::string program = "/home/zhechev/Developer/SIP/phase3/stins4llvm/src/InterestingProgram.c";
 		const std::string syminput = "../Docker/klee/syminputC.py";
 		
-		Type *x86_FP80Ty, *FP128Ty;
+		Type *x86_FP80Ty, *FP128Ty, *boolTy, *strPtrTy, *voidTy;
 		
 		Json::Value pureFunctionsTestCases;
 		 
@@ -58,16 +58,20 @@ namespace {
 		bool doInitialization(Module &M) override;
 		bool runOnModule(Module &M) override;	
 		
-		Json::Value parse(char * input);
+		Json::Value parse();
 		
 		Value* createLLVMValue(IRBuilder<> *builder, std::string value, Type *type);
 		void insertProtect(Module &M, Function *checker, Function *checkee);
     };
     
 	bool StateProtectorPass::doInitialization(Module &M) {
-	
-	    x86_FP80Ty = Type::getX86_FP80Ty(M.getContext()); 
-	    FP128Ty = Type::getFP128Ty(M.getContext());
+		LLVMContext &ctx = M.getContext();
+		
+	    x86_FP80Ty = Type::getX86_FP80Ty(ctx); 
+	    FP128Ty = Type::getFP128Ty(ctx);
+	    boolTy = Type::getInt1Ty(ctx);
+	    strPtrTy = Type::getInt8PtrTy(ctx);
+	    voidTy = Type::getVoidTy(ctx);
 	    
 		FILE *file;
     	int argc;
@@ -77,20 +81,7 @@ namespace {
     	}
 		
 		for (auto function : functionsToProtect) {
-			char *buffer = new char[MAX_LEN];
-			int out_pipe[2];
-			int saved_stdout;
-
-			saved_stdout = dup(STDOUT_FILENO);  /* save stdout for display later */
-
-			if( pipe(out_pipe) != 0 ) {          /* make a pipe */
-				exit(1);
-			}
-
-			dup2(out_pipe[1], STDOUT_FILENO);   /* redirect stdout to the pipe */
-			close(out_pipe[1]);
 			
-			/* anything sent to printf should now go down the pipe */
     		argc = 3;
 			mbstowcs(argv[0], syminput.c_str(), syminput.length());
 			mbstowcs(argv[1], function.c_str(), function.length());
@@ -104,28 +95,25 @@ namespace {
 			PyRun_SimpleFile(file, syminput.c_str());
 			Py_Finalize();
 		
-		
-			fflush(stdout);
-
-			read(out_pipe[0], buffer, MAX_LEN); /* read from pipe into buffer */
-
-			dup2(saved_stdout, STDOUT_FILENO);  /* reconnect stdout for testing */
-			//errs() << buffer;
-			Json::Value currentFunctionTestCases = parse(buffer);
+			Json::Value currentFunctionTestCases = parse();
 			pureFunctionsTestCases[function] = currentFunctionTestCases;
 		}
 		
 		return false;
 	}
 	
-	Json::Value StateProtectorPass::parse(char * input) {
+	Json::Value StateProtectorPass::parse() {
 		Json::Value root;   
     	Json::Reader reader;
-    	bool parsingSuccessful = reader.parse(input, root);
+    	std::ifstream file("/tmp/klee.json");
+    	bool parsingSuccessful = reader.parse(file, root, false);
+    	
     	if (!parsingSuccessful) {
         	errs()  << "Failed to parse"
           		    << reader.getFormattedErrorMessages() << "\n";
  		}
+ 		
+ 		file.close();
  		
  		return root;
 	}
@@ -251,7 +239,7 @@ namespace {
 		std::vector<Value *> args;
 		IRBuilder<> builder(funcOnStackTest);
 		Constant *stackFunction = M.getOrInsertFunction("checkTrace", 
-					FunctionType::get(Type::getInt1Ty(M.getContext()), Type::getInt8PtrTy(M.getContext()), false));
+					FunctionType::get(boolTy, strPtrTy, false));
 		
 		std::string functionNameString = checkee->getName();
 		Value *functionName = builder.CreateGlobalStringPtr(functionNameString);
@@ -266,6 +254,7 @@ namespace {
 		builder.SetInsertPoint(funcNotOnStack);
 		
 		args.clear();
+		
 		int i = 0;
 		for (auto &argument : checkee->getArgumentList()) {
 			Value *arg = createLLVMValue(&builder, pureFunctionsTestCases[checkee->getName()]["3"]["parameter"][i].asString(), argument.getType());
@@ -283,10 +272,10 @@ namespace {
 			checkerResult = builder.CreateFCmpONE(result, checkeeCall);
 		} else if (checkee->getReturnType()->isPointerTy() &&  
 					checkee->getReturnType()->getContainedType(0)->isIntegerTy(8)) { // char *
-			Type *argsTypes[2] = {Type::getInt8PtrTy(M.getContext()), Type::getInt8PtrTy(M.getContext())};
+			Type *argsTypes[2] = {strPtrTy, strPtrTy};
 			
 			Constant *strcmpFunction = M.getOrInsertFunction("cmpstr", 
-					FunctionType::get(Type::getInt1Ty(M.getContext()), ArrayRef<Type *>(argsTypes), false));
+					FunctionType::get(boolTy, ArrayRef<Type *>(argsTypes), false));
 			
 			args.clear();
 			args.push_back(result);
@@ -299,7 +288,7 @@ namespace {
 		
 		builder.SetInsertPoint(reportBlock);
 		Constant *reportFunction = M.getOrInsertFunction("report", 
-					FunctionType::get(Type::getVoidTy(M.getContext()), false));
+					FunctionType::get(voidTy, false));
 		builder.CreateCall(reportFunction);
 		builder.CreateBr(firstBasicBlock);
 	}
@@ -309,7 +298,7 @@ namespace {
 		Json::StreamWriterBuilder wbuilder;
 		std::string output = Json::writeString(wbuilder, pureFunctionsTestCases);
 	
-		errs() << output;
+		errs() << output << "\n";
 		std::vector<Function *> pureFunctions;
 	  	std::vector<Function *> allFunctions;
 	  	  	
@@ -348,6 +337,7 @@ namespace {
 				insertProtect(M, checkerFunction, checkeeFunction);
 			}
 		}
+		
 	  	return true;		
 	}
 }

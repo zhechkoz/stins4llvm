@@ -1,17 +1,24 @@
 #include <algorithm>
 #include <cstring>
 #include <string>
-#include <iostream>
+#include <ctime>
+#include <cstdlib>
+
 #include <execinfo.h>
 #include <unistd.h>
+#include <signal.h>
 
+#define DEBUG 1
 #define STACKTRACE 256
+#define REPORT 2
 
 const std::string libcStartMain = "__libc_start_main";
 
+extern "C" void initRandom() {
+	std::srand(std::time(0));
+}
+
 extern "C" bool cmpstr(char *first, char *second) {
-	puts(first);
-	puts(second);
 	return std::strcmp(first, second);
 }
 
@@ -26,8 +33,7 @@ extern "C" bool checkTrace(char *functionName) {
 
   	char **traces = backtrace_symbols(array, size);
   	
-  	// Skip the check and stackTrace
-  	for(unsigned int i = 2; i < size; i++) {
+  	for(unsigned int i = 0; i < size; i++) {
   		char *begin = traces[i];
   		
   		for (char* p = traces[i]; *p; p++) {
@@ -41,10 +47,8 @@ extern "C" bool checkTrace(char *functionName) {
   		
   		std::string funcName(begin);
   		
-  		// Skip libc functions
-  		if (funcName == libcStartMain) {
-  			break;
-  		}
+  		// Skip everything after libc functions
+  		if (funcName == libcStartMain) { break; }
   		
   		trace.push_back(funcName);
   	}
@@ -54,17 +58,46 @@ extern "C" bool checkTrace(char *functionName) {
   	return functionOnStack;
 } 
 
-extern "C" void report() {
-	puts("Hash corrupted!");
-	/*pid_t pid = fork();
-	if (pid == 0) {
-		
-		puts("exited");
-		while(1) {
-			usleep(100);
-		}
-		
-		exit(1);
-	} */
+int generateRandom10() {
+	return std::rand() % 10;
 }
+
+extern "C" void report() {
+	#if DEBUG
+		puts("Hash corrupted!");
+	#endif 
+	
+	int randNum = generateRandom10();
+	
+	#if DEBUG
+		printf("Should report: %s (%d)\n", randNum > REPORT ? "TRUE" : "FALSE", randNum);
+	#endif
+	
+	// In 20% of the times don't do anything
+	if (randNum < REPORT) {
+		return;
+	}
+	
+	// In the other 80% spawn a thread, sleep 
+	// and kill the process
+	int parent = getpid();
+	pid_t pid = fork();
+	
+	if (pid == 0) {
+		randNum = generateRandom10();
+	
+		#if DEBUG
+			printf("Kill in %d seconds...\n", randNum);
+		#endif
+	
+		sleep(randNum);
+		
+        kill(parent, SIGKILL);
+		exit(0);
+	}
+}
+
+#undef DEBUG
+#undef STACKTRACE
+#undef REPORT
 
