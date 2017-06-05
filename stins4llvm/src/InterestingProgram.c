@@ -4,10 +4,18 @@
 
 char* isValidLicenseKey(const char* input) {
 	if(strcmp(input, "ValidLicenseKey") == 0) {
-		return "V";
+		return "#";
 	}
 	
 	return "@";
+}
+
+short add(short a, short b) {
+	return a < b ? a + b : b + a;
+}
+
+long sub(long a, long b) {
+	return a - b;
 }
 
 int max(int a, int b, int c) {

@@ -8,16 +8,16 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/APFloat.h"
 
+#include <string>
+#include <stdlib.h>
+#include <unistd.h>
+#include <iostream>
+#include <algorithm>
+
 #include <Python.h>
 #include <json/value.h>
 #include <json/reader.h>
 #include <json/writer.h>
-#include <string>
-#include <stdlib.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <iostream>
-#include <algorithm>
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graphviz.hpp>
@@ -26,7 +26,7 @@
 #define WARNING "\033[43m\033[1mWARNING:\033[0m "
 #define ERROR "\033[101m\033[1mERROR:\033[0m "
 
-#define MAX_LEN 4096
+#define PYTHON_OUTPUT_PATH "/tmp/klee.json"
 
 using namespace llvm;
 
@@ -42,13 +42,22 @@ typedef Graph::vertex_iterator vertex_iter;
 typedef Graph::adjacency_iterator adj_vertex_iter;
 
 namespace {
+	const std::string CHECKTRACEFUNC = "checkTrace" , REPORTFUNC = "report", CMPSTRFUNC = "cmpstr",
+						INITRANDOMFUNC = "initRandom";
+	const std::string RESULT = "result", PARAMETER = "parameter";
+	const std::vector<std::string> ENTRYPOINTS = {"main"};
 	
+	const std::string USAGE = "Specify file containing configuration file!";
+	const cl::opt<std::string> FILENAME("ff", cl::desc(USAGE.c_str()));
+
 	struct StateProtectorPass : public ModulePass {
 		static char ID;
-		std::vector<std::string> functionsToProtect = {"max", "min"};
-		const std::string inputProgram = "/home/zhechev/Developer/SIP/phase3/stins4llvm/src/InterestingProgram.c";
-		const std::string syminput = "../Docker/klee/syminputC.py";
-		bool verbose = true;
+		Constant *checkFunction, *reportFunction;
+		
+		std::vector<std::string> functionsToProtect;
+		std::string inputProgram, syminput;
+		int connectivity;
+		bool verbose;
 		 
 		Type *x86_FP80Ty, *FP128Ty, *boolTy, *strPtrTy, *voidTy;
 		
@@ -59,8 +68,9 @@ namespace {
 		bool doInitialization(Module &M) override;
 		bool runOnModule(Module &M) override;	
 		
-		Json::Value generateTestCasesForFunctions(std::vector<Function *> functions, size_t maxFunctionNameLength);
-		Json::Value parseFromFile(std::string fileName);
+		Json::Value generateTestCasesForFunctions(std::vector<Function *> functions, 
+											size_t maxFunctionNameLength);
+		
 		
 		Graph createCheckerNetwork(std::vector<Function *> allFunctions, 
 							   std::vector<Function *> pureFunctions, unsigned int connectivity);
@@ -68,7 +78,23 @@ namespace {
 		Value* createLLVMValue(IRBuilder<> *builder, std::string value, Type *type);
 		void insertProtect(Module &M, Function *checker, Function *checkee);
 		void insertRandSeed(Module &M);
+		Json::Value parseFromFile(std::string fileName);
+		void parseConfig(std::string fileName);
     };
+    
+    
+    void StateProtectorPass::parseConfig(std::string fileName) {
+    	Json::Value config = parseFromFile(fileName); // Parse config file
+    	
+    	inputProgram = config["program"].asString();
+    	syminput = config["syminput"].asString();
+    	connectivity = config["connectivity"].asInt();
+    	verbose = config["verbose"].asBool();
+    	
+    	for (auto function : config["functions"]) {
+    		functionsToProtect.push_back(function.asString());
+    	}
+    }
     
 	bool StateProtectorPass::doInitialization(Module &M) {
 		LLVMContext &ctx = M.getContext();
@@ -78,6 +104,8 @@ namespace {
 	    boolTy = Type::getInt1Ty(ctx);
 	    strPtrTy = Type::getInt8PtrTy(ctx);
 	    voidTy = Type::getVoidTy(ctx);
+	    
+	    parseConfig(FILENAME);
 	    
 	    // Get all existing pure functions and the maximal
 	    // length of their names
@@ -109,6 +137,46 @@ namespace {
 	    }
 	    
 		return false;
+	}
+	
+	bool StateProtectorPass::runOnModule(Module &M) { 
+		std::vector<Function *> pureFunctions;
+	  	std::vector<Function *> allFunctions;
+	  	  	
+		for (auto &F : M) {
+			if (F.size() > 0 && !F.isDeclaration()) {
+				allFunctions.push_back(&F);
+				
+				if (std::find(functionsToProtect.begin(), functionsToProtect.end(), F.getName()) 
+					!= functionsToProtect.end()) {
+					pureFunctions.push_back(&F);
+				}
+			}	
+		}
+	  	
+	  	Graph g = createCheckerNetwork(allFunctions, pureFunctions, connectivity);
+	  	
+	  	std::pair<vertex_iter, vertex_iter> vp;
+    
+		// For every function from the graph
+		for (vp = vertices(g); vp.first != vp.second; ++vp.first) {
+			VertexDescriptor v = *vp.first;
+			Function *checkerFunction = g[v].function;
+			errs() << "Function " << checkerFunction->getName() << " checks: \n"; 
+			std::pair<adj_vertex_iter, adj_vertex_iter> adj_vp;
+	  		
+	  		for (adj_vp = adjacent_vertices(v, g); adj_vp.first != adj_vp.second; ++adj_vp.first) {
+				v = *adj_vp.first;
+				Function *checkeeFunction = g[v].function;
+				errs() << "\t" << checkeeFunction->getName() << "\n"; 
+				// Insert checker
+				insertProtect(M, checkerFunction, checkeeFunction);
+			}
+		}
+		
+		insertRandSeed(M);
+		
+	  	return true;		
 	}
 	
 	Json::Value StateProtectorPass::generateTestCasesForFunctions(std::vector<Function *> functions, 
@@ -144,9 +212,8 @@ namespace {
 			
 			fclose(file);
 			
-			// TODO: Make path string OS independent
 			// Save intermediate results from parsing
-			Json::Value currentFunctionTestCases = parseFromFile("/tmp/klee.json");
+			Json::Value currentFunctionTestCases = parseFromFile(PYTHON_OUTPUT_PATH);
 			outputTestCases[functionName] = currentFunctionTestCases;
 		}
 		
@@ -291,11 +358,13 @@ namespace {
 	}
 	
 	void StateProtectorPass::insertProtect(Module &M, Function *checker, Function *checkee) {
-		
+		std::vector<Value *> args;
 		BasicBlock *firstBasicBlock = &checker->getEntryBlock();
+		
+		// Create blocks to insert checkers and report
 		BasicBlock *reportBlock = BasicBlock::Create(M.getContext(), "reportBlock", checker, firstBasicBlock);
 		
-		std::vector<BasicBlock *> funcNotOnStack;
+		std::vector<BasicBlock *> funcNotOnStack; 
 		for (unsigned int j = 0; j < pureFunctionsTestCases[checkee->getName()].size(); j++) {
 			BasicBlock *checkBlock = BasicBlock::Create(M.getContext(), "funcNotOnStack", checker, reportBlock);
 			funcNotOnStack.push_back(checkBlock);
@@ -303,10 +372,9 @@ namespace {
 		
 		BasicBlock *funcOnStackTest = BasicBlock::Create(M.getContext(), "funcOnStack", checker, funcNotOnStack[0]);
 		
-		std::vector<Value *> args;
 		IRBuilder<> builder(funcOnStackTest);
-		Constant *stackFunction = M.getOrInsertFunction("checkTrace", 
-					FunctionType::get(boolTy, strPtrTy, false));
+		Constant *stackFunction = M.getOrInsertFunction(CHECKTRACEFUNC, 
+											FunctionType::get(boolTy, strPtrTy, false));
 		
 		std::string functionNameString = checkee->getName();
 		Value *functionName = builder.CreateGlobalStringPtr(functionNameString);
@@ -318,25 +386,27 @@ namespace {
 		Value *stackResult = builder.CreateICmpEQ(onStack, stackCall);
 		builder.CreateCondBr(stackResult, firstBasicBlock, funcNotOnStack[0]);
 		
-		
 
 		Value *checkeeCall;
 		Value *result;
 		Value *checkerResult;
-		for (unsigned j = 0; j < pureFunctionsTestCases[checkee->getName()].size(); j++) {
+		
+		for (unsigned int j = 0; j < pureFunctionsTestCases[checkee->getName()].size(); j++) {
 			BasicBlock *checkBlock = funcNotOnStack[j];
 			builder.SetInsertPoint(checkBlock);
 			args.clear();
 		
 			int i = 0;
 			for (auto &argument : checkee->getArgumentList()) {
-				Value *arg = createLLVMValue(&builder, pureFunctionsTestCases[checkee->getName()][std::to_string(j)]["parameter"][i].asString(), argument.getType());
+				std::string testParameter = pureFunctionsTestCases[checkee->getName()][std::to_string(j)][PARAMETER][i].asString();
+				Value *arg = createLLVMValue(&builder, testParameter, argument.getType());
 				args.push_back(arg);
 				i++;
 			}
 		
 			checkeeCall = builder.CreateCall(checkee, args);
-			result = createLLVMValue(&builder, pureFunctionsTestCases[checkee->getName()][std::to_string(j)]["result"].asString(), checkee->getReturnType());
+			std::string testResult = pureFunctionsTestCases[checkee->getName()][std::to_string(j)][RESULT].asString();
+			result = createLLVMValue(&builder, testResult, checkee->getReturnType());
 			
 		
 			if (checkee->getReturnType()->isIntegerTy()) {
@@ -347,7 +417,7 @@ namespace {
 						checkee->getReturnType()->getContainedType(0)->isIntegerTy(8)) { // char *
 				Type *argsTypes[2] = {strPtrTy, strPtrTy};
 			
-				Constant *strcmpFunction = M.getOrInsertFunction("cmpstr", 
+				Constant *strcmpFunction = M.getOrInsertFunction(CMPSTRFUNC, 
 						FunctionType::get(boolTy, ArrayRef<Type *>(argsTypes), false));
 			
 				args.clear();
@@ -357,70 +427,42 @@ namespace {
 				checkerResult = builder.CreateICmpNE(result, builder.getInt1(false));
 			}
 			
-			if (j == pureFunctionsTestCases[checkee->getName()].size()-1){
+			if (j == pureFunctionsTestCases[checkee->getName()].size() - 1){
 				builder.CreateCondBr(checkerResult, reportBlock, firstBasicBlock);
-			} else{
-				builder.CreateCondBr(checkerResult, reportBlock, funcNotOnStack[j+1]);
+			} else {
+				builder.CreateCondBr(checkerResult, reportBlock, funcNotOnStack[j + 1]);
 			}
 		}
+		
 		builder.SetInsertPoint(reportBlock);
-		Constant *reportFunction = M.getOrInsertFunction("report", 
-					FunctionType::get(voidTy, false));
+		Constant *reportFunction = M.getOrInsertFunction(REPORTFUNC, 
+											FunctionType::get(voidTy, false));
 		builder.CreateCall(reportFunction);
 		builder.CreateBr(firstBasicBlock);
 	}
 	
 	void StateProtectorPass::insertRandSeed(Module &M) {
-		Function *F = M.getFunction("main");
+		Function *F = nullptr;
+		
+		// Find a valid function to insert the seedRandom
+		for (auto function : ENTRYPOINTS) {
+			F = M.getFunction(function);
+			
+			// Found a function to insert
+			if (F != nullptr && F->size() > 0 && !F->isDeclaration()) { break; }
+		}
+		
   		if (F != nullptr && F->size() > 0 && !F->isDeclaration()) {
   			Instruction *firstInst = &*(F->getEntryBlock().getFirstInsertionPt());
   			
   			IRBuilder<> builder(firstInst);
   			
-  			Constant *initRandomFunction = M.getOrInsertFunction("initRandom", 
-						FunctionType::get(voidTy, false));
+  			Constant *initRandomFunction = M.getOrInsertFunction(INITRANDOMFUNC, 
+													FunctionType::get(voidTy, false));
   			builder.CreateCall(initRandomFunction);
+  		} else {
+  			errs() << WARNING << "Random function cannot be seeded!\n"; 
   		}
-	}
-	
-	bool StateProtectorPass::runOnModule(Module &M) { 
-		std::vector<Function *> pureFunctions;
-	  	std::vector<Function *> allFunctions;
-	  	  	
-		for (auto &F : M) {
-			if (F.size() > 0 && !F.isDeclaration()) {
-				allFunctions.push_back(&F);
-				
-				if (std::find(functionsToProtect.begin(), functionsToProtect.end(), F.getName()) 
-					!= functionsToProtect.end()) {
-					pureFunctions.push_back(&F);
-				}
-			}	
-		}
-	  	
-	  	Graph g = createCheckerNetwork(allFunctions, pureFunctions, 1);
-	  	
-	  	std::pair<vertex_iter, vertex_iter> vp;
-    
-		// For every function from the graph
-		for (vp = vertices(g); vp.first != vp.second; ++vp.first) {
-			VertexDescriptor v = *vp.first;
-			Function *checkerFunction = g[v].function;
-			errs() << "Function " << checkerFunction->getName() << " checks: \n"; 
-			std::pair<adj_vertex_iter, adj_vertex_iter> adj_vp;
-	  		
-	  		for (adj_vp = adjacent_vertices(v, g); adj_vp.first != adj_vp.second; ++adj_vp.first) {
-				v = *adj_vp.first;
-				Function *checkeeFunction = g[v].function;
-				errs() << "\t" << checkeeFunction->getName() << "\n"; 
-				// Insert checker
-				insertProtect(M, checkerFunction, checkeeFunction);
-			}
-		}
-		
-		insertRandSeed(M);
-		
-	  	return true;		
 	}
 }
 

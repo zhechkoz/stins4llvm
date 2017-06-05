@@ -1,0 +1,8 @@
+{
+    "functions" : ["add"],
+    "program" : "/home/zhechev/Developer/SIP/phase3/stins4llvm/src/InterestingProgram.c",
+    "connectivity":2,
+    "syminput" : "../Docker/klee/syminputC.py",
+    "verbose" : true
+}
+

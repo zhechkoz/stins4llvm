@@ -7,7 +7,7 @@ cfile=""
 
 function usage() {
     echo "usage: run [-f file ]"
-    echo "	-f file containing new line separated functions to protect"
+    echo "	-f file containing configuration"
     echo "	-c source file to protect"
 }
 
@@ -48,7 +48,7 @@ cfile=${arrC[0]}
 clang-3.9 -c -O0 -emit-llvm ${c} -o "$build$cfile.bc"
 exitIfFail $?
 
-opt-3.9 -load "${build}libStateProtectorPass.so" -stateProtect < "${build}${cfile}.bc" > "${build}${cfile}-inst.bc"
+opt-3.9 -load "${build}libStateProtectorPass.so" -stateProtect -ff $filename < "${build}${cfile}.bc" > "${build}${cfile}-inst.bc"
 exitIfFail $?
 
 llc-3.9 -filetype=obj "${build}${cfile}-inst.bc"

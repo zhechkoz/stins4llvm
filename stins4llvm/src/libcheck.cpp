@@ -3,12 +3,13 @@
 #include <string>
 #include <ctime>
 #include <cstdlib>
+#include <vector>
 
 #include <execinfo.h>
 #include <unistd.h>
 #include <signal.h>
 
-#define DEBUG 0
+#define DEBUG 1
 #define STACKTRACE 256
 #define REPORT 2
 
