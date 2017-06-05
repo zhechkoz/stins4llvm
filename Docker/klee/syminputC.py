@@ -29,7 +29,7 @@ if __name__ == '__main__':
 			bcfiles.append(bcfile)
 
 		# and link everything together
-		run([LINKR] + bcfiles + ['-o', path.join(tmpdir, 'everything.bc')], check=True)
+		run([LINKR] + bcfiles + ['-o', path.join(tmpdir, 'everything.bc')], stdout=PIPE, stderr=PIPE, check=True)
 		
 		# Finally run KLEE on it
 		run_KLEE(args.functionname, path.join(tmpdir, "everything.bc"))
