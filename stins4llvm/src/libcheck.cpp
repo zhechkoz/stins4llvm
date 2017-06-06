@@ -71,7 +71,7 @@ extern "C" void report() {
 	int randNum = generateRandom10();
 	
 	#if DEBUG
-		printf("Should report: %s (%d)\n", randNum > REPORT ? "TRUE" : "FALSE", randNum);
+		printf("Should report: %s (%d)\n", randNum >= REPORT ? "TRUE" : "FALSE", randNum);
 	#endif
 	
 	// In 20% of the times don't do anything

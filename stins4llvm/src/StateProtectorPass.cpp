@@ -10,6 +10,7 @@
 
 #include <string>
 #include <stdlib.h>
+#include <ctime>
 #include <unistd.h>
 #include <iostream>
 #include <algorithm>
@@ -82,7 +83,6 @@ namespace {
 		void parseConfig(std::string fileName);
     };
     
-    
     void StateProtectorPass::parseConfig(std::string fileName) {
     	Json::Value config = parseFromFile(fileName); // Parse config file
     	
@@ -94,9 +94,29 @@ namespace {
     	for (auto function : config["functions"]) {
     		functionsToProtect.push_back(function.asString());
     	}
+    	
+    	if (functionsToProtect.empty() || inputProgram.empty() || syminput.empty()) {
+    		errs() << ERROR << "Not initialised correctly! Make sure "
+    						<< "you provide at least one pure function to protect!\n";
+    		exit(1); 
+    	}
     }
     
 	bool StateProtectorPass::doInitialization(Module &M) {
+		// Check if there is a function in the target program that conflicts
+		// with the current set of functions
+		if (M.getFunction(StringRef(CHECKTRACEFUNC)) != nullptr || 
+			M.getFunction(StringRef(REPORTFUNC)) != nullptr ||
+			M.getFunction(StringRef(CMPSTRFUNC)) != nullptr ||
+			M.getFunction(StringRef(INITRANDOMFUNC)) != nullptr) {
+			errs() << ERROR << " The target program should not contain functions called"
+				   << CHECKTRACEFUNC << ", " << REPORTFUNC 
+				   << CMPSTRFUNC << " or " << INITRANDOMFUNC << "\n";
+			exit(1);
+		}
+		
+		std::srand(std::time(0));
+		
 		LLVMContext &ctx = M.getContext();
 		
 	    x86_FP80Ty = Type::getX86_FP80Ty(ctx); 
@@ -133,26 +153,34 @@ namespace {
 			std::string output = Json::writeString(wbuilder, pureFunctionsTestCases);
 	
 			errs() << "==== TEST CASES ====\n\n" 
-				   << output << "\n";
+				   << output << "\n\n";
 	    }
 	    
 		return false;
 	}
 	
 	bool StateProtectorPass::runOnModule(Module &M) { 
-		std::vector<Function *> pureFunctions;
-	  	std::vector<Function *> allFunctions;
+		std::vector<Function *> pureFunctions,  allFunctions;
 	  	  	
 		for (auto &F : M) {
 			if (F.size() > 0 && !F.isDeclaration()) {
 				allFunctions.push_back(&F);
 				
 				if (std::find(functionsToProtect.begin(), functionsToProtect.end(), F.getName()) 
-					!= functionsToProtect.end()) {
+						!= functionsToProtect.end() && pureFunctionsTestCases.isMember(F.getName())) {
 					pureFunctions.push_back(&F);
 				}
 			}	
 		}
+	  	
+	  	if (!pureFunctions.empty()) {
+	  		errs() << "Pure functions which will be protected: \n";
+	  		
+	  		for (auto function : pureFunctions) {
+	  			errs() << "\t" << function->getName() << "\n";
+	  		}
+	  		errs() << "\n";
+	  	}
 	  	
 	  	Graph g = createCheckerNetwork(allFunctions, pureFunctions, connectivity);
 	  	
@@ -161,14 +189,20 @@ namespace {
 		// For every function from the graph
 		for (vp = vertices(g); vp.first != vp.second; ++vp.first) {
 			VertexDescriptor v = *vp.first;
-			Function *checkerFunction = g[v].function;
-			errs() << "Function " << checkerFunction->getName() << " checks: \n"; 
-			std::pair<adj_vertex_iter, adj_vertex_iter> adj_vp;
+			Function *checkerFunction = g[v].function; 
+			
+			std::pair<adj_vertex_iter, adj_vertex_iter> adj_vp = adjacent_vertices(v, g);
+			
+			// Function checks other functions
+	  		if (adj_vp.first != adj_vp.second) {
+	  			errs() << "Function " << checkerFunction->getName() << " checks: \n"; 
+	  		}
 	  		
-	  		for (adj_vp = adjacent_vertices(v, g); adj_vp.first != adj_vp.second; ++adj_vp.first) {
+	  		for ( ;adj_vp.first != adj_vp.second; ++adj_vp.first) {
 				v = *adj_vp.first;
 				Function *checkeeFunction = g[v].function;
 				errs() << "\t" << checkeeFunction->getName() << "\n"; 
+				
 				// Insert checker
 				insertProtect(M, checkerFunction, checkeeFunction);
 			}
@@ -183,7 +217,7 @@ namespace {
 																				   size_t maxFunctionNameLength) {
 		Json::Value outputTestCases;
 		FILE *file;
-    	int argc = 3;
+    	int argc = 3, returnValue;
     	std::vector<wchar_t*> argv(argc, nullptr);
     	
     	// Generate input for the python script
@@ -207,14 +241,18 @@ namespace {
     		PySys_SetArgv(argc, argv.data());
     		
 			file = fopen(syminput.c_str(), "r");
-			PyRun_SimpleFile(file, syminput.c_str());
+			returnValue = PyRun_SimpleFile(file, syminput.c_str());
 			Py_Finalize();
 			
 			fclose(file);
 			
-			// Save intermediate results from parsing
-			Json::Value currentFunctionTestCases = parseFromFile(PYTHON_OUTPUT_PATH);
-			outputTestCases[functionName] = currentFunctionTestCases;
+			if (returnValue == 0) { 
+				// Save intermediate results from parsing
+				Json::Value currentFunctionTestCases = parseFromFile(PYTHON_OUTPUT_PATH);
+				outputTestCases[functionName] = currentFunctionTestCases;
+			} else {
+				errs() << WARNING << "Failed to generate test cases for function " << functionName << "\n";
+			}
 		}
 		
 		// Release buffer
@@ -233,7 +271,7 @@ namespace {
     	bool parsingSuccessful = reader.parse(file, root, false);
     	
     	if (!parsingSuccessful) {
-        	errs()  << WARNING << "Failed to parse file. Tests might be incomplete!\n"
+        	errs()  << WARNING << "Failed to parse file " << fileName << " correctly!\n"
           		    << reader.getFormattedErrorMessages() << "\n";
  		}
  		
@@ -270,7 +308,8 @@ namespace {
 			unsigned int out = 0;
 			while(out < connectivity) {
 				vertex_t checker;
-				// checkers are chosen randomly
+				
+				// Checkers are chosen randomly
 				int rand_pos;
 				while(true) {
 					rand_pos = rand() % checkerFunctions.size();
@@ -300,8 +339,19 @@ namespace {
 		
 		if (type->isPointerTy()) {
 			Type *content = type->getContainedType(0);
-			if (content->isIntegerTy(8)) {			// char* 
-				output = builder->CreateGlobalStringPtr(value);
+			if (content->isIntegerTy(8)) {	 // char*
+				int length = value.length();
+				if((length == 4 || length == 8 || length == 16) && value.substr(0,1) == "0" && value.substr(1, 1) == "x") {
+					std::string result;
+					for(int i = length - 2; i > 1; i-=2) {
+						std::string byte = value.substr(i,2);
+						char chr = (char) (int)std::strtol(byte.c_str(), nullptr, 16);
+						result.push_back(chr);
+					}
+					output = builder->CreateGlobalStringPtr(result);
+ 				} else {
+ 					output = builder->CreateGlobalStringPtr(value);
+ 				}
 			} else {
 				errs() << ERROR << "Type ";
 				type->print(errs());
@@ -311,17 +361,17 @@ namespace {
 			if (type->isIntegerTy(8)) {
 				output = builder->getInt8(value[0]);
 			} else if (type->isIntegerTy(16)) {
-				short castedShort = boost::lexical_cast<short>(value);
+				short castedShort = (short) std::stoi(value, nullptr, 16);
 				output = builder->getInt16(castedShort);
 			} else if (type->isIntegerTy(32)) {
-				int castedInt = boost::lexical_cast<int>(value);
+				int castedInt = std::stoi(value, nullptr, 16);
 				output = builder->getInt32(castedInt);
 			} else if (type->isIntegerTy(64)) {
-				long castedInt = boost::lexical_cast<long>(value);
-				output = builder->getInt64(castedInt);
+				long castedLong = std::stol(value, nullptr, 16);
+				output = builder->getInt64(castedLong);
 			} else if (type->isIntegerTy(128)) {
-				long long castedInt = boost::lexical_cast<long long>(value);
-				output = builder->getIntN(128, castedInt);
+				long long castedLongLong = std::stoll(value, nullptr, 16);
+				output = builder->getIntN(128, castedLongLong);
 			} else {
 				errs() << ERROR << "Type ";
 				type->print(errs());
@@ -329,16 +379,16 @@ namespace {
 			}
 		} else if (type->isFloatingPointTy()) {
 			if (type->isFloatTy()) {
-				float castedFloat = boost::lexical_cast<float>(value);
+				float castedFloat = std::stoi(value, nullptr, 16);
 				output = ConstantFP::get(builder->getFloatTy(), castedFloat);
 			} else if (type->isDoubleTy()) {
-				double castedDouble = boost::lexical_cast<double>(value);
+				double castedDouble = std::stol(value, nullptr, 16);
 				output = ConstantFP::get(builder->getDoubleTy(), castedDouble);
 			} else if (type->isX86_FP80Ty()) {
-				long double castedDouble = boost::lexical_cast<long double>(value);
+				long double castedDouble = std::stoll(value, nullptr, 16);
 				output = ConstantFP::get(x86_FP80Ty, castedDouble);
 			} else if (type->isFP128Ty()) {
-				long double castedDouble = boost::lexical_cast<long double>(value);
+				long double castedDouble = std::stoll(value, nullptr, 16);
 				output = ConstantFP::get(FP128Ty, castedDouble);
 			} 
 			

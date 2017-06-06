@@ -4,10 +4,14 @@
 
 char* isValidLicenseKey(const char* input) {
 	if(strcmp(input, "ValidLicenseKey") == 0) {
-		return "ABCDE";
+		return "A";
 	}
 	
-	return "ABDCE";
+	return "C";
+}
+
+char addChar(char a, char b) {
+	return a < b ? a + b : b + a;
 }
 
 short add(short a, short b) {
@@ -75,6 +79,7 @@ void print(char *message) {
 int main(int argc, char** argv) {
 
 	InterestingProcedure();
+	print("Nachricht");
 	
 	while(1) {}
     return 0;

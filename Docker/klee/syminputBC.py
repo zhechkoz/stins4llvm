@@ -28,7 +28,7 @@ def run_KLEE(functionname, bcfile):
         p = run(["for ktest in "+ path.join(tmpdir, "klee-last") +"/*.ktest; do " + KTEST + " --write-ints $ktest; echo ""; done"], stdout=PIPE, shell=True)
         
         out = p.stdout.decode('unicode_escape')
-        
+
         with open(path.join('/tmp', 'klee.json'), 'w') as f:
         	f.write(parse(out))
         # input("Press enter to delete " + tmpdir)
@@ -36,14 +36,14 @@ def run_KLEE(functionname, bcfile):
 def packerParser(size, parameter):
 	result = 0
 	try:
-		return str(int(parameter))
+		return str(hex(int(parameter)))
 	except:
 		pass
 	
 	sizeChar = ''
 	
 	if size == 1:
-		sizeChar = 'c'
+		return str(result)
 	elif size == 2:
 		sizeChar = 'h'
 	elif size == 4:
@@ -52,8 +52,8 @@ def packerParser(size, parameter):
 		sizeChar = 'q'
 	
 	result = unpack('<' + sizeChar, bytes(parameter, 'ISO-8859-1'))[0]
-	
-	return str(result)
+
+	return str(hex(result))
 
 def parse(kleeOutput):
 	output = {}
@@ -80,31 +80,28 @@ def parse(kleeOutput):
 			parameter = testCase[1+j*3+2].split(':')[2].strip()
 			parameter = parameter.replace("'", "")
 			
-			if nextIsString:
+			size = int(testCase[1+j*3+1].split(':')[2].strip())
+			
+			if nextIsString or size == 1:
 				output[str(i)]["parameter"] += [parameter] # Save the string
 				nextIsString = False # Parse next
 			else:
-				size = int(testCase[1+j*3+1].split(':')[2].strip())
 				parsed = packerParser(size, parameter)
-
 				output[str(i)]["parameter"] += [parsed]
 		
 		result = testCase[-1].split(':')[2].strip()
 		result = result.replace("'", "")
+		size = int(testCase[-2].split(':')[2].strip())
 		
-		if nextIsString:
-			output[str(i)]["result"] = result
-			nextIsString = False
-		else:
-			size = int(testCase[-2].split(':')[2].strip())
+		if size in [2,4,8]:
 			parsed = packerParser(size, result)
-			
-			output[str(i)]["result"] = parsed	
-		
+			output[str(i)]["result"] = parsed
+		else:
+			output[str(i)]["result"] = result
 		
 		i += 1	
 				
-	return json.dumps(output, ensure_ascii=False)
+	return json.dumps(output, ensure_ascii=False) #.replace('\\\\x', '\\u00')
 	
 	
 
