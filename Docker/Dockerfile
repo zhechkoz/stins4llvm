@@ -10,12 +10,11 @@ RUN apt-get update && apt-get install -y \
 	vim \
 	wget \
  && rm -rf /var/lib/apt/lists/*
-	 
 
 # Install llvm 3.9 (based on http://apt.llvm.org/)
 RUN echo "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-3.9 main" >> /etc/apt/sources.list \
  && echo "deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial-3.9 main"  >> /etc/apt/sources.list \
- && apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 15CF4D18AF4F7421 
+ && apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 15CF4D18AF4F7421
 
 RUN apt-get update && apt-get install -y \
 	clang-3.9 clang-3.9-doc \
@@ -32,8 +31,20 @@ RUN apt-get update && apt-get install -y \
 	libffi-dev \
 	python \
 	python-pip \
- && rm -rf /var/lib/apt/lists/*	
+ && rm -rf /var/lib/apt/lists/*
 RUN pip install angr
+
+RUN apt-get update && apt-get install -y \
+	python3.5-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /home/sip
+
+RUN git clone https://github.com/open-source-parsers/jsoncpp.git
+
+WORKDIR /home/sip/jsoncpp/build
+RUN cmake .. && make install
+
 
 # Add a non-root user
 RUN useradd --create-home --shell /bin/bash sip \
@@ -52,9 +63,9 @@ RUN apt-get update && apt-get install -y \
 	subversion \
 	unzip \
 	zlib1g-dev \
- && rm -rf /var/lib/apt/lists/*	
- 
-# Build KLEE	
+ && rm -rf /var/lib/apt/lists/*
+
+# Build KLEE
 RUN git clone https://github.com/tum-i22/klee-install.git \
  && mkdir build \
  && sh ./klee-install/ubuntu.sh /home/sip/build/
@@ -62,8 +73,8 @@ RUN git clone https://github.com/tum-i22/klee-install.git \
 # Build KLEE opt passes
 RUN apt-get update && apt-get install -y \
 	python3 \
- && rm -rf /var/lib/apt/lists/*	
- 
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /home/sip/build
 RUN git clone -b ktest-result --depth 1 https://github.com/tum-i22/macke-opt-llvm.git
 WORKDIR /home/sip/build/macke-opt-llvm
@@ -82,5 +93,5 @@ USER sip
 WORKDIR /home/sip
 RUN git clone https://github.com/johanneszi/SIP.git
 
-WORKDIR /home/sip/SIP/phase3 
-
+WORKDIR /home/sip/SIP/phase3/stins4llvm
+RUN make
