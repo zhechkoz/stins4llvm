@@ -9,7 +9,7 @@
 #include "llvm/ADT/APFloat.h"
 
 #include <string>
-#include <stdlib.h>
+#include <cstdlib>
 #include <ctime>
 #include <unistd.h>
 #include <iostream>
@@ -22,7 +22,6 @@
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graphviz.hpp>
-#include <boost/lexical_cast.hpp>
 
 #define WARNING "\033[43m\033[1mWARNING:\033[0m "
 #define ERROR "\033[101m\033[1mERROR:\033[0m "
@@ -43,8 +42,9 @@ typedef Graph::vertex_iterator vertex_iter;
 typedef Graph::adjacency_iterator adj_vertex_iter;
 
 namespace {
-	const std::string CHECKTRACEFUNC = "checkTrace" , REPORTFUNC = "report", CMPSTRFUNC = "cmpstr",
-						INITRANDOMFUNC = "initRandom";
+	enum FunctionsToInsertNames { checkTrace = 0, report, cmpstr, initRandom };
+	const std::vector<std::string> FunctionsToInsert = { "checkTrace" , "report", "cmpstr", "initRandom" };
+	
 	const std::string RESULT = "result", PARAMETER = "parameter";
 	const std::vector<std::string> ENTRYPOINTS = {"main"};
 	
@@ -71,7 +71,6 @@ namespace {
 		
 		Json::Value generateTestCasesForFunctions(std::vector<Function *> functions, 
 											size_t maxFunctionNameLength);
-		
 		
 		Graph createCheckerNetwork(std::vector<Function *> allFunctions, 
 							   std::vector<Function *> pureFunctions, unsigned int connectivity);
@@ -105,14 +104,12 @@ namespace {
 	bool StateProtectorPass::doInitialization(Module &M) {
 		// Check if there is a function in the target program that conflicts
 		// with the current set of functions
-		if (M.getFunction(StringRef(CHECKTRACEFUNC)) != nullptr || 
-			M.getFunction(StringRef(REPORTFUNC)) != nullptr ||
-			M.getFunction(StringRef(CMPSTRFUNC)) != nullptr ||
-			M.getFunction(StringRef(INITRANDOMFUNC)) != nullptr) {
-			errs() << ERROR << " The target program should not contain functions called"
-				   << CHECKTRACEFUNC << ", " << REPORTFUNC 
-				   << CMPSTRFUNC << " or " << INITRANDOMFUNC << "\n";
-			exit(1);
+		for (auto functionName : FunctionsToInsert) {
+			if (M.getFunction(StringRef(functionName)) != nullptr) {
+				errs() << ERROR << " The target program should not contain function called " 
+					   << functionName << "\n";
+				exit(1);
+			}
 		}
 		
 		std::srand(std::time(0));
@@ -423,7 +420,7 @@ namespace {
 		BasicBlock *funcOnStackTest = BasicBlock::Create(M.getContext(), "funcOnStack", checker, funcNotOnStack[0]);
 		
 		IRBuilder<> builder(funcOnStackTest);
-		Constant *stackFunction = M.getOrInsertFunction(CHECKTRACEFUNC, 
+		Constant *stackFunction = M.getOrInsertFunction(FunctionsToInsert[checkTrace], 
 											FunctionType::get(boolTy, strPtrTy, false));
 		
 		std::string functionNameString = checkee->getName();
@@ -467,7 +464,7 @@ namespace {
 						checkee->getReturnType()->getContainedType(0)->isIntegerTy(8)) { // char *
 				Type *argsTypes[2] = {strPtrTy, strPtrTy};
 			
-				Constant *strcmpFunction = M.getOrInsertFunction(CMPSTRFUNC, 
+				Constant *strcmpFunction = M.getOrInsertFunction(FunctionsToInsert[cmpstr], 
 						FunctionType::get(boolTy, ArrayRef<Type *>(argsTypes), false));
 			
 				args.clear();
@@ -485,7 +482,7 @@ namespace {
 		}
 		
 		builder.SetInsertPoint(reportBlock);
-		Constant *reportFunction = M.getOrInsertFunction(REPORTFUNC, 
+		Constant *reportFunction = M.getOrInsertFunction(FunctionsToInsert[report], 
 											FunctionType::get(voidTy, false));
 		builder.CreateCall(reportFunction);
 		builder.CreateBr(firstBasicBlock);
@@ -507,7 +504,7 @@ namespace {
   			
   			IRBuilder<> builder(firstInst);
   			
-  			Constant *initRandomFunction = M.getOrInsertFunction(INITRANDOMFUNC, 
+  			Constant *initRandomFunction = M.getOrInsertFunction(FunctionsToInsert[initRandom], 
 													FunctionType::get(voidTy, false));
   			builder.CreateCall(initRandomFunction);
   		} else {
