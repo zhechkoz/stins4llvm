@@ -57,8 +57,8 @@ namespace {
 		
 		std::vector<std::string> functionsToProtect;
 		std::string inputProgram, syminput;
-		int connectivity;
-		bool verbose;
+		int connectivity = 0;
+		bool verbose = false;
 		 
 		Type *x86_FP80Ty, *FP128Ty, *boolTy, *strPtrTy, *voidTy;
 		
@@ -94,7 +94,7 @@ namespace {
     		functionsToProtect.push_back(function.asString());
     	}
     	
-    	if (functionsToProtect.empty() || inputProgram.empty() || syminput.empty()) {
+    	if (functionsToProtect.empty() || inputProgram.empty() || syminput.empty() || connectivity <= 0) {
     		errs() << ERROR << "Not initialised correctly! Make sure "
     						<< "you provide at least one pure function to protect!\n";
     		exit(1); 
@@ -238,6 +238,12 @@ namespace {
     		PySys_SetArgv(argc, argv.data());
     		
 			file = fopen(syminput.c_str(), "r");
+			
+			if (file == NULL) {
+				errs() << ERROR << "Test generation script not found!\n";
+				exit(1);
+			}
+			
 			returnValue = PyRun_SimpleFile(file, syminput.c_str());
 			Py_Finalize();
 			
@@ -265,6 +271,12 @@ namespace {
     	Json::Reader reader;
     	
     	std::ifstream file(fileName);
+    	
+    	if (!file.good()) {
+    		errs() << ERROR << "File " << fileName << " could not be found!\n";
+    		exit(1);
+    	}
+    	
     	bool parsingSuccessful = reader.parse(file, root, false);
     	
     	if (!parsingSuccessful) {
@@ -303,12 +315,12 @@ namespace {
 		for (auto checkee : checkeeFunctions) {
 			// Connect enough other vertices as checkers to this node to fulfill the connectivity 
 			unsigned int out = 0;
-			while(out < connectivity) {
+			while (out < connectivity) {
 				vertex_t checker;
 				
 				// Checkers are chosen randomly
 				int rand_pos;
-				while(true) {
+				while (true) {
 					rand_pos = rand() % checkerFunctions.size();
 					checker = checkerFunctions[rand_pos];
 					if (checkee != checker){
@@ -317,7 +329,7 @@ namespace {
 				}
 				
 				// If the edge was added increase the counter and repeat until connectivity is reached
-				if(boost::add_edge(checker, checkee, g).second) {
+				if (boost::add_edge(checker, checkee, g).second) {
 					out += 1;
 				}
 			}
@@ -338,9 +350,9 @@ namespace {
 			Type *content = type->getContainedType(0);
 			if (content->isIntegerTy(8)) {	 // char*
 				int length = value.length();
-				if((length == 4 || length == 8 || length == 16) && value.substr(0,1) == "0" && value.substr(1, 1) == "x") {
+				if ((length == 4 || length == 8 || length == 16) && value.substr(0,1) == "0" && value.substr(1, 1) == "x") {
 					std::string result;
-					for(int i = length - 2; i > 1; i-=2) {
+					for (int i = length - 2; i > 1; i-=2) {
 						std::string byte = value.substr(i,2);
 						char chr = (char) (int)std::strtol(byte.c_str(), nullptr, 16);
 						result.push_back(chr);
