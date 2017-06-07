@@ -5,11 +5,19 @@ RUN apt-get update && apt-get install -y \
 	build-essential \
 	cmake \
 	git \
+	jq \
+	locales \
 	nano \
 	sudo \
 	vim \
 	wget \
  && rm -rf /var/lib/apt/lists/*
+
+# Specify locales
+RUN locale-gen en_US.UTF-8  
+ENV LANG en_US.UTF-8  
+ENV LANGUAGE en_US:en  
+ENV LC_ALL en_US.UTF-8
 
 # Install llvm 3.9 (based on http://apt.llvm.org/)
 RUN echo "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-3.9 main" >> /etc/apt/sources.list \
@@ -33,18 +41,6 @@ RUN apt-get update && apt-get install -y \
 	python-pip \
  && rm -rf /var/lib/apt/lists/*
 RUN pip install angr
-
-RUN apt-get update && apt-get install -y \
-	python3.5-dev \
- && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /home/sip
-
-RUN git clone https://github.com/open-source-parsers/jsoncpp.git
-
-WORKDIR /home/sip/jsoncpp/build
-RUN cmake .. && make install
-
 
 # Add a non-root user
 RUN useradd --create-home --shell /bin/bash sip \
@@ -73,6 +69,8 @@ RUN git clone https://github.com/tum-i22/klee-install.git \
 # Build KLEE opt passes
 RUN apt-get update && apt-get install -y \
 	python3 \
+	python3.5-dev \
+	python3-pip \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /home/sip/build
@@ -83,15 +81,28 @@ RUN make -j 2 \
 	KLEE_BUILDDIR=/home/sip/build/klee/Release+Asserts \
 	KLEE_INCLUDES=/home/sip/build/klee/include/
 
-# Copy pass files
-COPY . /home/sip/
+# Install radare2
+WORKDIR /home/sip
+RUN git clone https://github.com/radare/radare2 \
+ && /home/radare2sys/install.sh \
+ && pip3 install r2pipe
 
-# Switch to user
+# Install project dependencies
+WORKDIR /home/sip
+RUN git clone https://github.com/open-source-parsers/jsoncpp.git
+WORKDIR /home/sip/jsoncpp/build
+RUN cmake .. \
+ && make install
+
+# Switch to user sip
 RUN chown -R sip:sip /home/sip/
 USER sip
+WORKDIR /home/sip
 
+# Set up project repo
 WORKDIR /home/sip
 RUN git clone https://github.com/johanneszi/SIP.git
 
 WORKDIR /home/sip/SIP/phase3/stins4llvm
 RUN make
+

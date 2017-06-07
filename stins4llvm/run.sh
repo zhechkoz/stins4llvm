@@ -1,14 +1,12 @@
 #!/bin/bash
 
 build="build/"
-filename=""
-c="" 
+filename="" 
 cfile=""
 
 function usage() {
     echo "usage: run [-f file ]"
     echo "	-f file containing configuration"
-    echo "	-c source file to protect"
 }
 
 function exitIfFail() {
@@ -17,7 +15,7 @@ function exitIfFail() {
 fi
 }
 
-if [ "$1" == "" ] || [ $# != 4 ]; then
+if [ "$1" == "" ] || [ $# != 2 ]; then
 	usage
 	exit 1
 fi
@@ -27,9 +25,6 @@ while [ "$1" != "" ]; do
         -f | --file )           shift
                                 filename=$1
                                 ;;
-        -c | --cfile )          shift
-                                c=$1
-                                ;;
         -h | --help )           usage
                                 exit
                                 ;;
@@ -38,6 +33,10 @@ while [ "$1" != "" ]; do
     esac
     shift
 done
+
+# Parse json to get c file name
+c=$(jq -r '.program' $filename)
+exitIfFail $?
 
 # Parce c file
 arrC=(${c//// })

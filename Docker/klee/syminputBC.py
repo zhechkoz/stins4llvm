@@ -29,7 +29,7 @@ def run_KLEE(functionname, bcfile):
         
         out = p.stdout.decode('unicode_escape')
 
-        with open(path.join('/tmp', 'klee.json'), 'w') as f:
+        with open(path.join('/tmp', 'klee.json'), 'w', encoding='utf-8') as f:
         	f.write(parse(out))
         # input("Press enter to delete " + tmpdir)
 
@@ -101,7 +101,7 @@ def parse(kleeOutput):
 		
 		i += 1	
 				
-	return json.dumps(output, ensure_ascii=False) #.replace('\\\\x', '\\u00')
+	return json.dumps(output, ensure_ascii=False)
 	
 	
 

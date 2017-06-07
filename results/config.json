@@ -1,6 +1,6 @@
 {
     "functions" : ["mul", "add", "sub","isValidLicenseKey", "addChar"],
-    "program" : "/home/zhechev/Developer/SIP/phase3/stins4llvm/src/InterestingProgram.c",
+    "program" : "src/InterestingProgram.c",
     "connectivity" : 2,
     "syminput" : "../Docker/klee/syminputC.py",
     "verbose" : true
