@@ -10,8 +10,7 @@ RUN apt-get update && apt-get install -y \
 	nano \
 	sudo \
 	vim \
-	wget \
- && rm -rf /var/lib/apt/lists/*
+	wget
 
 # Specify locales
 RUN locale-gen en_US.UTF-8  
@@ -31,15 +30,13 @@ RUN apt-get update && apt-get install -y \
 	lldb-3.9 llvm-3.9 llvm-3.9-dev llvm-3.9-doc llvm-3.9-examples llvm-3.9-runtime \
 	clang-format-3.9 \
 	python-clang-3.9 \
-	libfuzzer-3.9-dev \
- && rm -rf /var/lib/apt/lists/*
+	libfuzzer-3.9-dev
 
 # Install angr
 RUN apt-get update && apt-get install -y \
 	libffi-dev \
 	python \
-	python-pip \
- && rm -rf /var/lib/apt/lists/*
+	python-pip 
 RUN pip install angr
 
 # Add a non-root user
@@ -52,14 +49,12 @@ WORKDIR /home/sip
 # Install KLEE dependencies
 RUN apt-get update && apt-get install -y \
 	bc bison \
-	build-essential \
-	cmake curl flex git \
+	curl flex \
 	libboost-all-dev libcap-dev libncurses5-dev \
-	python-minimal python-pip \
+	python-minimal \
 	subversion \
 	unzip \
-	zlib1g-dev \
- && rm -rf /var/lib/apt/lists/*
+	zlib1g-dev
 
 # Build KLEE
 RUN git clone https://github.com/tum-i22/klee-install.git \
@@ -81,18 +76,18 @@ RUN make -j 2 \
 	KLEE_BUILDDIR=/home/sip/build/klee/Release+Asserts \
 	KLEE_INCLUDES=/home/sip/build/klee/include/
 
-# Install radare2
 WORKDIR /home/sip
+
+# Install radare2
 RUN git clone https://github.com/radare/radare2 \
- && /home/radare2sys/install.sh \
+ && sh /home/sip/radare2/sys/install.sh \
  && pip3 install r2pipe
 
 # Install project dependencies
-WORKDIR /home/sip
 RUN git clone https://github.com/open-source-parsers/jsoncpp.git
 WORKDIR /home/sip/jsoncpp/build
 RUN cmake .. \
- && make install
+ && make -j 2 install
 
 # Switch to user sip
 RUN chown -R sip:sip /home/sip/
@@ -100,7 +95,6 @@ USER sip
 WORKDIR /home/sip
 
 # Set up project repo
-WORKDIR /home/sip
 RUN git clone https://github.com/johanneszi/SIP.git
 
 WORKDIR /home/sip/SIP/phase3/stins4llvm
