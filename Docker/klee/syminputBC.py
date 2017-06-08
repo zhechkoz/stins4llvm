@@ -26,7 +26,7 @@ def run_KLEE(functionname, bcfile):
 
         # show the details of all test cases
         p = run(["for ktest in "+ path.join(tmpdir, "klee-last") +"/*.ktest; do " + KTEST + " --write-ints $ktest; echo ""; done"], stdout=PIPE, shell=True)
-        
+
         out = p.stdout.decode('unicode_escape')
 
         with open(path.join('/tmp', 'klee.json'), 'w', encoding='utf-8') as f:
@@ -34,76 +34,74 @@ def run_KLEE(functionname, bcfile):
         # input("Press enter to delete " + tmpdir)
 
 def packerParser(size, parameter):
-	result = 0
-	try:
-		return str(hex(int(parameter)))
-	except:
-		pass
-	
-	sizeChar = ''
-	
-	if size == 1:
-		return str(result)
-	elif size == 2:
-		sizeChar = 'h'
-	elif size == 4:
-		sizeChar = 'i'
-	elif size == 8:
-		sizeChar = 'q'
-	
-	result = unpack('<' + sizeChar, bytes(parameter, 'ISO-8859-1'))[0]
+    result = 0
+    try:
+        return str(hex(int(parameter)))
+    except:
+        pass
 
-	return str(hex(result))
+    sizeChar = ''
+
+    if size == 1:
+        return str(result)
+    elif size == 2:
+        sizeChar = 'h'
+    elif size == 4:
+        sizeChar = 'i'
+    elif size == 8:
+        sizeChar = 'q'
+
+    result = unpack('<' + sizeChar, bytes(parameter, 'ISO-8859-1'))[0]
+
+    return str(hex(result))
 
 def parse(kleeOutput):
-	output = {}
-	kleeOutput = kleeOutput.split('\n\n')[:-1]
-	i = 0
-	nextIsString = False
-	
-	for testCase in kleeOutput:
-		testCase = testCase.split('\n')[2:]
-			
-		numObjects = int(testCase[0].split(':')[1])
-		
-		# Result is not valid
-		if numObjects > 0 and testCase[-3].split(':')[2].strip() != "'macke_result'":
-			continue
-		
-		output[str(i)] = {}
-		output[str(i)]["parameter"] = []
-		
-		for j in range(1, numObjects - 1):
-			if "macke_sizeof" in testCase[1+j*3].split(':')[2].strip():
-				nextIsString = True
-				continue
-			parameter = testCase[1+j*3+2].split(':')[2].strip()
-			parameter = parameter.replace("'", "")
-			
-			size = int(testCase[1+j*3+1].split(':')[2].strip())
-			
-			if nextIsString or size == 1:
-				output[str(i)]["parameter"] += [parameter] # Save the string
-				nextIsString = False # Parse next
-			else:
-				parsed = packerParser(size, parameter)
-				output[str(i)]["parameter"] += [parsed]
-		
-		result = testCase[-1].split(':')[2].strip()
-		result = result.replace("'", "")
-		size = int(testCase[-2].split(':')[2].strip())
-		
-		if size in [2,4,8]:
-			parsed = packerParser(size, result)
-			output[str(i)]["result"] = parsed
-		else:
-			output[str(i)]["result"] = result
-		
-		i += 1	
-				
-	return json.dumps(output, ensure_ascii=False)
-	
-	
+    output = {}
+    kleeOutput = kleeOutput.split('\n\n')[:-1]
+    i = 0
+    nextIsString = False
+
+    for testCase in kleeOutput:
+        testCase = testCase.split('\n')[2:]
+
+        numObjects = int(testCase[0].split(':')[1])
+
+        # Result is not valid
+        if numObjects > 0 and testCase[-3].split(':')[2].strip() != "'macke_result'":
+            continue
+
+        output[str(i)] = {}
+        output[str(i)]["parameter"] = []
+
+        for j in range(1, numObjects - 1):
+            if "macke_sizeof" in testCase[1+j*3].split(':')[2].strip():
+                nextIsString = True
+                continue
+            parameter = testCase[1+j*3+2].split(':')[2].strip()
+            parameter = parameter.replace("'", "")
+
+            size = int(testCase[1+j*3+1].split(':')[2].strip())
+
+            if nextIsString or size == 1:
+                output[str(i)]["parameter"] += [parameter] # Save the string
+                nextIsString = False # Parse next
+            else:
+                parsed = packerParser(size, parameter)
+                output[str(i)]["parameter"] += [parsed]
+
+        result = testCase[-1].split(':')[2].strip()
+        result = result.replace("'", "")
+        size = int(testCase[-2].split(':')[2].strip())
+
+        if size in [2,4,8]:
+            parsed = packerParser(size, result)
+            output[str(i)]["result"] = parsed
+        else:
+            output[str(i)]["result"] = result
+
+        i += 1
+
+    return json.dumps(output, ensure_ascii=False)
 
 if __name__ == '__main__':
     # Some argument parsing
@@ -114,4 +112,3 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     run_KLEE(args.functionname, args.bcfile.name)
-    
