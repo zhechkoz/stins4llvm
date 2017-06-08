@@ -99,7 +99,7 @@ namespace {
 		if (functionsToProtect.empty() || inputProgram.empty() || syminput.empty() || connectivity <= 0) {
 			errs() << ERROR << "Not initialised correctly! Make sure "
 							<< "you provide at least one pure function to protect!\n";
-		exit(1);
+			exit(1);
 		}
 	}
 
@@ -108,7 +108,7 @@ namespace {
 		// with the current set of functions
 		for (auto functionName : FunctionsToInsert) {
 			if (M.getFunction(StringRef(functionName)) != nullptr) {
-				errs() << ERROR << " The target program should not contain function called " 
+				errs() << ERROR << " The target program should not contain function called "
 					   << functionName << "\n";
 				exit(1);
 			}
@@ -163,7 +163,7 @@ namespace {
 			if (F.size() > 0 && !F.isDeclaration()) {
 				allFunctions.push_back(&F);
 
-				if (std::find(functionsToProtect.begin(), functionsToProtect.end(), F.getName()) 
+				if (std::find(functionsToProtect.begin(), functionsToProtect.end(), F.getName())
 						!= functionsToProtect.end() && pureFunctionsTestCases.isMember(F.getName())) {
 					pureFunctions.push_back(&F);
 				}
@@ -192,13 +192,13 @@ namespace {
 
 			// Function checks other functions
 	  		if (adj_vp.first != adj_vp.second) {
-	  			errs() << "Function " << checkerFunction->getName() << " checks: \n"; 
+	  			errs() << "Function " << checkerFunction->getName() << " checks: \n";
 	  		}
 
 	  		for ( ;adj_vp.first != adj_vp.second; ++adj_vp.first) {
 				v = *adj_vp.first;
 				Function *checkeeFunction = g[v].function;
-				errs() << "\t" << checkeeFunction->getName() << "\n"; 
+				errs() << "\t" << checkeeFunction->getName() << "\n";
 
 				// Insert checker
 				insertProtect(M, checkerFunction, checkeeFunction);
@@ -210,24 +210,24 @@ namespace {
 	  	return true;
 	}
 
-	Json::Value StateProtectorPass::generateTestCasesForFunctions(std::vector<Function *> functions, 
+	Json::Value StateProtectorPass::generateTestCasesForFunctions(std::vector<Function *> functions,
 																				   size_t maxFunctionNameLength) {
 		Json::Value outputTestCases;
 		FILE *file;
-    		int argc = 3, returnValue;
-    		std::vector<wchar_t*> argv(argc, nullptr);
+		int argc = 3, returnValue;
+		std::vector<wchar_t*> argv(argc, nullptr);
 
-	    	// Generate input for the python script
-    		argv[0] = new wchar_t[syminput.length() + 1];
-	    	mbstowcs(argv[0], syminput.c_str(), syminput.length() + 1);
+		// Generate input for the python script
+		argv[0] = new wchar_t[syminput.length() + 1];
+		mbstowcs(argv[0], syminput.c_str(), syminput.length() + 1);
 
-	    	argv[1] = new wchar_t[maxFunctionNameLength + 1];
+		argv[1] = new wchar_t[maxFunctionNameLength + 1];
 
-	    	argv[2] = new wchar_t[inputProgram.length() + 1];
-	    	mbstowcs(argv[2], inputProgram.c_str(), inputProgram.length() + 1);
+		argv[2] = new wchar_t[inputProgram.length() + 1];
+		mbstowcs(argv[2], inputProgram.c_str(), inputProgram.length() + 1);
 
 
-    		for (auto function : functions) {
+		for (auto function : functions) {
 			std::string functionName = function->getName();
 
 			mbstowcs(argv[1], functionName.c_str(), functionName.length() + 1);
@@ -249,7 +249,7 @@ namespace {
 
 			fclose(file);
 
-			if (returnValue == 0) { 
+			if (returnValue == 0) {
 				// Save intermediate results from parsing
 				Json::Value currentFunctionTestCases = parseFromFile(PYTHON_OUTPUT_PATH);
 				outputTestCases[functionName] = currentFunctionTestCases;
@@ -263,18 +263,18 @@ namespace {
 			delete[] argv[i];
 		}
 
-	    	return outputTestCases;
+		return outputTestCases;
 	}
 
 	Json::Value StateProtectorPass::parseFromFile(std::string fileName) {
 		Json::Value root;
-	    	Json::Reader reader;
+		Json::Reader reader;
 
-	    	std::ifstream file(fileName);
+		std::ifstream file(fileName);
 
-	    	if (!file.good()) {
+		if (!file.good()) {
 			errs() << ERROR << "File " << fileName << " could not be found!\n";
-    			exit(1);
+			exit(1);
 		}
 
 		bool parsingSuccessful = reader.parse(file, root, false);
@@ -289,7 +289,7 @@ namespace {
 		return root;
 	}
 
-	Graph StateProtectorPass::createCheckerNetwork(std::vector<Function *> allFunctions, 
+	Graph StateProtectorPass::createCheckerNetwork(std::vector<Function *> allFunctions,
 							   std::vector<Function *> pureFunctions, unsigned int connectivity) {
 		Graph g;
 		std::vector<vertex_t> checkerFunctions, checkeeFunctions;
@@ -298,14 +298,15 @@ namespace {
 			vertex_t u = boost::add_vertex(g);
 			g[u].function = function;
 			checkerFunctions.push_back(u);
+
 			if (std::find(pureFunctions.begin(), pureFunctions.end(), function) != pureFunctions.end()) {
 				checkeeFunctions.push_back(u);
 			}
 		}
 
 		if (connectivity > checkerFunctions.size() - 1) {
-			errs() << WARNING << "The specified connectivity " 
-				   << connectivity << " is larger than the number of functions!\n" 
+			errs() << WARNING << "The specified connectivity "
+				   << connectivity << " is larger than the number of functions!\n"
 				   << "Connectivity set to: " << checkerFunctions.size() - 1 << "\n";
 		}
 
@@ -313,7 +314,7 @@ namespace {
 		connectivity = std::min((unsigned int)(checkerFunctions.size() - 1), connectivity);
 
 		for (auto checkee : checkeeFunctions) {
-			// Connect enough other vertices as checkers to this node to fulfill the connectivity 
+			// Connect enough other vertices as checkers to this node to fulfill the connectivity
 			unsigned int out = 0;
 			while (out < connectivity) {
 				vertex_t checker;
@@ -323,7 +324,7 @@ namespace {
 				while (true) {
 					rand_pos = rand() % checkerFunctions.size();
 					checker = checkerFunctions[rand_pos];
-					if (checkee != checker){
+					if (checkee != checker) {
 						break;
 					}
 				}
@@ -352,11 +353,11 @@ namespace {
 			// A Pointer type pointing to 8 bit values is a pointer of chars
 			if (content->isIntegerTy(8)) {	 // char*
 				int length = value.length();
-				if ((length == 4 || length == 8 || length == 16) && value.substr(0,1) == "0" && value.substr(1, 1) == "x") {
+				if ((length == 4 || length == 8 || length == 16) && value.substr(0, 2) == "0x") {
 					std::string result;
 					for (int i = length - 2; i > 1; i-=2) {
 						std::string byte = value.substr(i,2);
-						char chr = (char) (int)std::strtol(byte.c_str(), nullptr, 16);
+						char chr = (char) (int) std::strtol(byte.c_str(), nullptr, 16);
 						result.push_back(chr);
 					}
 					output = builder->CreateGlobalStringPtr(result);
@@ -427,7 +428,7 @@ namespace {
 		BasicBlock *reportBlock = BasicBlock::Create(M.getContext(), "reportBlock", checker, firstBasicBlock);
 
 		// Create basic block for each test case of a checkee
-		std::vector<BasicBlock *> funcNotOnStack; 
+		std::vector<BasicBlock *> funcNotOnStack;
 		for (unsigned int j = 0; j < pureFunctionsTestCases[checkee->getName()].size(); j++) {
 			BasicBlock *checkBlock = BasicBlock::Create(M.getContext(), "funcNotOnStack", checker, reportBlock);
 			funcNotOnStack.push_back(checkBlock);
@@ -437,7 +438,7 @@ namespace {
 		BasicBlock *funcOnStackTest = BasicBlock::Create(M.getContext(), "funcOnStack", checker, funcNotOnStack[0]);
 
 		IRBuilder<> builder(funcOnStackTest);
-		Constant *stackFunction = M.getOrInsertFunction(FunctionsToInsert[checkTrace], 
+		Constant *stackFunction = M.getOrInsertFunction(FunctionsToInsert[checkTrace],
 											FunctionType::get(boolTy, strPtrTy, false));
 
 		std::string functionNameString = checkee->getName();
@@ -491,7 +492,7 @@ namespace {
 				// so far only a function to compare the values of char pointer is available
 				Type *argsTypes[2] = {strPtrTy, strPtrTy};
 
-				Constant *strcmpFunction = M.getOrInsertFunction(FunctionsToInsert[cmpstr], 
+				Constant *strcmpFunction = M.getOrInsertFunction(FunctionsToInsert[cmpstr],
 						FunctionType::get(boolTy, ArrayRef<Type *>(argsTypes), false));
 
 				args.clear();
@@ -502,7 +503,7 @@ namespace {
 			}
 
 			// Call the report function if a check was negative or jump to the next basic block (checker/ original function) if the test was positive
-			if (j == pureFunctionsTestCases[checkee->getName()].size() - 1){
+			if (j == pureFunctionsTestCases[checkee->getName()].size() - 1) {
 				builder.CreateCondBr(checkerResult, reportBlock, firstBasicBlock);
 			} else {
 				builder.CreateCondBr(checkerResult, reportBlock, funcNotOnStack[j + 1]);
@@ -533,11 +534,11 @@ namespace {
 
 			IRBuilder<> builder(firstInst);
 
-			Constant *initRandomFunction = M.getOrInsertFunction(FunctionsToInsert[initRandom], 
+			Constant *initRandomFunction = M.getOrInsertFunction(FunctionsToInsert[initRandom],
 													FunctionType::get(voidTy, false));
 			builder.CreateCall(initRandomFunction);
 		} else {
-			errs() << WARNING << "Random function cannot be seeded!\n"; 
+			errs() << WARNING << "Random function cannot be seeded!\n";
 		}
 	}
 }
