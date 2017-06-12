@@ -1,6 +1,11 @@
 import r2pipe
+from sys import argv
 
-r2 = r2pipe.open('./InterestingProgram-rewritten')
+if len(argv) != 2:
+	print('Please provide program name!')
+	exit(1)
+
+r2 = r2pipe.open(argv[1])
 
 def seek(addr):
 	r2.cmd('s '+ str(addr))

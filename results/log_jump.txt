@@ -1,0 +1,171 @@
+==== TEST CASES ====
+
+{
+	"add" : 
+	{
+		"0" : 
+		{
+			"parameter" : 
+			[
+				"0x0",
+				"0x0"
+			],
+			"result" : "0x0"
+		},
+		"1" : 
+		{
+			"parameter" : 
+			[
+				"0x0",
+				"0x1"
+			],
+			"result" : "0x1"
+		}
+	},
+	"addChar" : 
+	{
+		"0" : 
+		{
+			"parameter" : 
+			[
+				"\u0000",
+				"\u0000"
+			],
+			"result" : "\u0000"
+		},
+		"1" : 
+		{
+			"parameter" : 
+			[
+				"\u0000",
+				"\u0001"
+			],
+			"result" : "\u0001"
+		}
+	},
+	"isValidLicenseKey" : 
+	{
+		"0" : 
+		{
+			"parameter" : 
+			[
+				"\u0000"
+			],
+			"result" : "0x43"
+		},
+		"1" : 
+		{
+			"parameter" : 
+			[
+				"\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
+			],
+			"result" : "0x43"
+		},
+		"2" : 
+		{
+			"parameter" : 
+			[
+				"ValidLicenseKey\u0000"
+			],
+			"result" : "0x41"
+		},
+		"3" : 
+		{
+			"parameter" : 
+			[
+				"ValidLicenseKey\u0000ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ"
+			],
+			"result" : "0x41"
+		}
+	},
+	"mul" : 
+	{
+		"0" : 
+		{
+			"parameter" : 
+			[
+				"0x0",
+				"0x1"
+			],
+			"result" : "0x0"
+		},
+		"1" : 
+		{
+			"parameter" : 
+			[
+				"0x0",
+				"0x0"
+			],
+			"result" : "0x0"
+		}
+	},
+	"sub" : 
+	{
+		"0" : 
+		{
+			"parameter" : 
+			[
+				"-0x623a4088bb562610",
+				"-0x552d000000000000"
+			],
+			"result" : "-0xd0d4088bb562610"
+		},
+		"1" : 
+		{
+			"parameter" : 
+			[
+				"0x0",
+				"0x0"
+			],
+			"result" : "0x0"
+		}
+	}
+}
+
+Pure functions which will be protected: 
+	isValidLicenseKey
+	addChar
+	add
+	mul
+	sub
+
+=== CHECKER NETWORK ===
+digraph G {
+0;
+1;
+2;
+3;
+4;
+5;
+6;
+7;
+8;
+9;
+5->0 ;
+1->0 ;
+0->1 ;
+9->1 ;
+8->2 ;
+6->2 ;
+1->3 ;
+4->3 ;
+6->4 ;
+8->4 ;
+}
+Function isValidLicenseKey checks: 
+	addChar
+Function addChar checks: 
+	isValidLicenseKey
+	mul
+Function sub checks: 
+	mul
+Function max checks: 
+	isValidLicenseKey
+Function min checks: 
+	add
+	sub
+Function print checks: 
+	add
+	sub
+Function main checks: 
+	addChar
