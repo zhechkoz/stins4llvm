@@ -132,15 +132,15 @@ namespace {
 		size_t maxFunctionNameLength = 0;
 
 		for (auto funcName : functionsToProtect) {
-		  	Function *F = M.getFunction(funcName);
-	  		if (F == nullptr || F->size() <= 0 || F->isDeclaration()) {
-	  			errs() << WARNING << "Function " << funcName << " not found and will be skipped!\n";
-	  			continue;
-	  		}
-  			maxFunctionNameLength = std::max(maxFunctionNameLength, funcName.length());
+			Function *F = M.getFunction(funcName);
+			if (F == nullptr || F->size() <= 0 || F->isDeclaration()) {
+				errs() << WARNING << "Function " << funcName << " not found and will be skipped!\n";
+				continue;
+			}
+			maxFunctionNameLength = std::max(maxFunctionNameLength, funcName.length());
 
-	  		pureFunctions.push_back(F);
-  		}
+			pureFunctions.push_back(F);
+		}
 
 		// Generate for all valid functions test cases
 		pureFunctionsTestCases = generateTestCasesForFunctions(pureFunctions, maxFunctionNameLength);
@@ -170,18 +170,18 @@ namespace {
 			}
 		}
 
-	  	if (!pureFunctions.empty()) {
-	  		errs() << "Pure functions which will be protected: \n";
+		if (!pureFunctions.empty()) {
+			errs() << "Pure functions which will be protected: \n";
 
-	  		for (auto function : pureFunctions) {
-	  			errs() << "\t" << function->getName() << "\n";
-	  		}
-	  		errs() << "\n";
-	  	}
+			for (auto function : pureFunctions) {
+				errs() << "\t" << function->getName() << "\n";
+			}
+			errs() << "\n";
+		}
 
-	  	Graph g = createCheckerNetwork(allFunctions, pureFunctions, connectivity);
+		Graph g = createCheckerNetwork(allFunctions, pureFunctions, connectivity);
 
-	  	std::pair<vertex_iter, vertex_iter> vp;
+		std::pair<vertex_iter, vertex_iter> vp;
 
 		// For every function from the graph
 		for (vp = vertices(g); vp.first != vp.second; ++vp.first) {
@@ -191,11 +191,11 @@ namespace {
 			std::pair<adj_vertex_iter, adj_vertex_iter> adj_vp = adjacent_vertices(v, g);
 
 			// Function checks other functions
-	  		if (adj_vp.first != adj_vp.second) {
-	  			errs() << "Function " << checkerFunction->getName() << " checks: \n";
-	  		}
+			if (adj_vp.first != adj_vp.second) {
+				errs() << "Function " << checkerFunction->getName() << " checks: \n";
+			}
 
-	  		for ( ;adj_vp.first != adj_vp.second; ++adj_vp.first) {
+			for ( ;adj_vp.first != adj_vp.second; ++adj_vp.first) {
 				v = *adj_vp.first;
 				Function *checkeeFunction = g[v].function;
 				errs() << "\t" << checkeeFunction->getName() << "\n";
@@ -207,11 +207,11 @@ namespace {
 
 		insertRandSeed(M);
 
-	  	return true;
+		return true;
 	}
 
 	Json::Value StateProtectorPass::generateTestCasesForFunctions(std::vector<Function *> functions,
-																				   size_t maxFunctionNameLength) {
+																				size_t maxFunctionNameLength) {
 		Json::Value outputTestCases;
 		FILE *file;
 		int argc = 3, returnValue;
@@ -281,7 +281,7 @@ namespace {
 
 		if (!parsingSuccessful) {
 			errs()  << WARNING << "Failed to parse file " << fileName << " correctly!\n"
-          			<< reader.getFormattedErrorMessages() << "\n";
+					<< reader.getFormattedErrorMessages() << "\n";
 		}
 
 		file.close();
@@ -290,7 +290,7 @@ namespace {
 	}
 
 	Graph StateProtectorPass::createCheckerNetwork(std::vector<Function *> allFunctions,
-							   std::vector<Function *> pureFunctions, unsigned int connectivity) {
+								std::vector<Function *> pureFunctions, unsigned int connectivity) {
 		Graph g;
 		std::vector<vertex_t> checkerFunctions, checkeeFunctions;
 

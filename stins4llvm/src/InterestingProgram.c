@@ -6,7 +6,7 @@ char* isValidLicenseKey(const char* input) {
 	if(strcmp(input, "ValidLicenseKey") == 0) {
 		return "A";
 	}
-	
+
 	return "C";
 }
 
@@ -66,22 +66,20 @@ int min(int a, int b, int c) {
 	}
 }
 
-
 void InterestingProcedure() {
-    printf("\t This is an interesting procedure\n");
+	printf("\t This is an interesting procedure\n");
 }
 
 void print(char *message) {
 	InterestingProcedure();
-    printf("%s\n", message);
+	printf("%s\n", message);
 }
 
 int main(int argc, char** argv) {
 
 	InterestingProcedure();
 	print("Nachricht");
-	
-	while(1) {}
-    return 0;
-}
 
+	while(1) {}
+	return 0;
+}

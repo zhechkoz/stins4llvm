@@ -13,9 +13,9 @@ RUN apt-get update && apt-get install -y \
 	wget
 
 # Specify locales
-RUN locale-gen en_US.UTF-8  
-ENV LANG en_US.UTF-8  
-ENV LANGUAGE en_US:en  
+RUN locale-gen en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
 # Install llvm 3.9 (based on http://apt.llvm.org/)
@@ -36,7 +36,7 @@ RUN apt-get update && apt-get install -y \
 RUN apt-get update && apt-get install -y \
 	libffi-dev \
 	python \
-	python-pip 
+	python-pip
 RUN pip install angr
 
 # Add a non-root user
@@ -99,4 +99,3 @@ RUN git clone https://github.com/johanneszi/SIP.git
 
 WORKDIR /home/sip/SIP/phase3/stins4llvm
 RUN make
-

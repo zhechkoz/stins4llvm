@@ -11,16 +11,16 @@ def seek(addr):
 	r2.cmd('s '+ str(addr))
 
 def currentInst(instruction):
-	if not instruction or len(instruction) == 0: 
+	if not instruction or len(instruction) == 0:
 		return (None, None, None)
-	
+
 	# Take the first instruction
-	currentInstruction = instruction[0] 
-	
+	currentInstruction = instruction[0]
+
 	type = None
 	opcode = None
 	size = None
-	
+
 	# Populate instruction parameters
 	if currentInstruction.get('type'):
 		type = currentInstruction['type']
@@ -28,22 +28,22 @@ def currentInst(instruction):
 		opcode = currentInstruction['opcode']
 	if currentInstruction.get('size'):
 		size = int(currentInstruction['size'])
-		
-	return (type, opcode, size) 
+
+	return (type, opcode, size)
 
 def findSubInstr(start, size):
 	address = start
-	
+
 	while address < start + size:
 		seek(address)
 		instruction = r2.cmdj('pdj 1')
 		(type, opcode, instSize) = currentInst(instruction)
-		
+
 		# If the instruction is a sub
 		# convert it it add
 		if type == 'sub':
 			yield address
-			
+
 		address += instSize
 
 def patchSub(address):
@@ -55,17 +55,16 @@ def patchSub(address):
 if __name__ == "__main__":
 	r2.cmd('oo+') # Open binary for writing
 	r2.cmd('aa') # Analyse functions
-	
+
 	subAddr = int(r2.cmd('?v sym.sub'), 16)
-	
+
 	if (subAddr == 0x0):
 		print('sub function cannot be found!')
 		exit(1)
-		
+
 	size = r2.cmdj('afij @ sym.sub')[0]['size']
-	
+
 	for subs in findSubInstr(subAddr, size):
 		patchSub(subs)
-	
-	r2.quit()
 
+	r2.quit()

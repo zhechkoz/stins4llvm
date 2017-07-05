@@ -34,7 +34,7 @@ extern "C" bool checkTrace(char *functionName) {
 
 	char **traces = backtrace_symbols(array, size);
 
-  	for(unsigned int i = 0; i < size; i++) {
+	for(unsigned int i = 0; i < size; i++) {
 		char *begin = traces[i];
 		for (char* p = traces[i]; *p; p++) {
 			if (*p == '(')
@@ -44,17 +44,17 @@ extern "C" bool checkTrace(char *functionName) {
 				break;
 			}
 		}
-  		std::string funcName(begin);
+		std::string funcName(begin);
 
 		// Skip everything after libc functions
 		if (funcName == libcStartMain) { break; }
 
-  		trace.push_back(funcName);
-  	}
+		trace.push_back(funcName);
+	}
 
-  	bool functionOnStack = std::find(trace.begin(), trace.end(), functionName) != trace.end();
+	bool functionOnStack = std::find(trace.begin(), trace.end(), functionName) != trace.end();
 
-  	return functionOnStack;
+	return functionOnStack;
 }
 
 int generateRandom10() {
@@ -77,7 +77,7 @@ extern "C" void report() {
 		return;
 	}
 
-	// In the other 80% spawn a thread, sleep 
+	// In the other 80% spawn a thread, sleep
 	// and kill the process
 	int parent = getpid();
 	pid_t pid = fork();
@@ -91,7 +91,7 @@ extern "C" void report() {
 
 		sleep(randNum);
 
-        kill(parent, SIGKILL);
+		kill(parent, SIGKILL);
 		exit(0);
 	}
 }
