@@ -46,7 +46,7 @@ namespace {
 	const std::vector<std::string> FunctionsToInsert = { "checkTrace" , "report", "cmpstr", "initRandom" };
 
 	const std::string RESULT = "result", PARAMETER = "parameter";
-	const std::vector<std::string> ENTRYPOINTS = {"main"};
+	const std::vector<std::string> ENTRYPOINTS = { "main" };
 
 	const std::string USAGE = "Specify file containing configuration file!";
 	const cl::opt<std::string> FILENAME("ff", cl::desc(USAGE.c_str()));
@@ -56,8 +56,8 @@ namespace {
 		static char ID;
 		Constant *checkFunction, *reportFunction;
 
-		std::vector<std::string> functionsToProtect;
-		std::string inputProgram, syminput;
+		std::vector<std::string> inputProgram, functionsToProtect;
+		std::string syminput;
 		int connectivity = 0;
 		bool verbose = false;
 
@@ -86,13 +86,16 @@ namespace {
 
 	void StateProtectorPass::parseConfig(std::string fileName) {
 		Json::Value config = parseFromFile(fileName); // Parse config file
-
-		inputProgram = config["program"].asString();
+        
+        for (auto cFile : config["program"]) {
+            inputProgram.push_back(cFile.asString());
+        }
+	
 		syminput = config["syminput"].asString();
 		connectivity = config["connectivity"].asInt();
 		verbose = config["verbose"].asBool();
 
-		for (auto function : config["functions"]) {
+		for (auto function : config["functionsRC"]) {
 			functionsToProtect.push_back(function.asString());
 		}
 
@@ -214,7 +217,7 @@ namespace {
 																				size_t maxFunctionNameLength) {
 		Json::Value outputTestCases;
 		FILE *file;
-		int argc = 3, returnValue;
+		int argc = inputProgram.size() + 2, returnValue, cFileNameLength = 0;
 		std::vector<wchar_t*> argv(argc, nullptr);
 
 		// Generate input for the python script
@@ -222,10 +225,12 @@ namespace {
 		mbstowcs(argv[0], syminput.c_str(), syminput.length() + 1);
 
 		argv[1] = new wchar_t[maxFunctionNameLength + 1];
-
-		argv[2] = new wchar_t[inputProgram.length() + 1];
-		mbstowcs(argv[2], inputProgram.c_str(), inputProgram.length() + 1);
-
+        
+        for (int i = 2; i < argc; i++) {
+            cFileNameLength = inputProgram[i - 2].length() + 1;
+            argv[i] = new wchar_t[cFileNameLength];
+            mbstowcs(argv[i], inputProgram[i - 2].c_str(), cFileNameLength);
+        }
 
 		for (auto function : functions) {
 			std::string functionName = function->getName();
