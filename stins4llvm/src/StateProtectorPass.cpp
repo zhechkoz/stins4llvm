@@ -26,8 +26,6 @@
 #define WARNING "\033[43m\033[1mWARNING:\033[0m "
 #define ERROR "\033[101m\033[1mERROR:\033[0m "
 
-#define PYTHON_OUTPUT_PATH "/tmp/klee.json"
-
 using namespace llvm;
 
 // Network of checkers using boost
@@ -51,13 +49,16 @@ namespace {
 	const std::string USAGE = "Specify file containing configuration file!";
 	const cl::opt<std::string> FILENAME("ff", cl::desc(USAGE.c_str()));
 
+	const std::string BCOUTPUTPATH = "/tmp/everything.bc";
+	const std::string PYTHONOUTPUTPATH = "/tmp/klee.json";
+
 	struct StateProtectorPass : public ModulePass {
 		// Variables
 		static char ID;
 		Constant *checkFunction, *reportFunction;
 
 		std::vector<std::string> inputProgram, functionsToProtect;
-		std::string syminput;
+		std::string syminputC, syminputBC;
 		int connectivity = 0;
 		bool verbose = false;
 
@@ -71,6 +72,7 @@ namespace {
 		bool doInitialization(Module &M) override;
 		bool runOnModule(Module &M) override;
 
+		void generateBitCodeForInputProgram();
 		Json::Value generateTestCasesForFunctions(std::vector<Function *> functions,
 											size_t maxFunctionNameLength);
 
@@ -86,12 +88,13 @@ namespace {
 
 	void StateProtectorPass::parseConfig(std::string fileName) {
 		Json::Value config = parseFromFile(fileName); // Parse config file
-        
-        for (auto cFile : config["program"]) {
-            inputProgram.push_back(cFile.asString());
-        }
-	
-		syminput = config["syminput"].asString();
+
+		for (auto cFile : config["program"]) {
+			inputProgram.push_back(cFile.asString());
+		}
+
+		syminputC = config["syminputC"].asString();
+		syminputBC = config["syminputBC"].asString();
 		connectivity = config["connectivity"].asInt();
 		verbose = config["verbose"].asBool();
 
@@ -99,7 +102,8 @@ namespace {
 			functionsToProtect.push_back(function.asString());
 		}
 
-		if (functionsToProtect.empty() || inputProgram.empty() || syminput.empty() || connectivity <= 0) {
+		if (functionsToProtect.empty() || inputProgram.empty() ||
+		    syminputC.empty() || syminputBC.empty() || connectivity <= 0) {
 			errs() << ERROR << "Not initialised correctly! Make sure "
 							<< "you provide at least one pure function to protect!\n";
 			exit(1);
@@ -213,24 +217,67 @@ namespace {
 		return true;
 	}
 
+	void StateProtectorPass::generateBitCodeForInputProgram() {
+		FILE *file;
+		int argc = inputProgram.size() + 1, returnValue, cFileNameLength = 0;
+		std::vector<wchar_t*> argv(argc, nullptr);
+
+		// Generate input for the python script
+		argv[0] = new wchar_t[syminputC.length() + 1];
+		mbstowcs(argv[0], syminputC.c_str(), syminputC.length() + 1);
+
+		for (int i = 1; i < argc; i++) {
+			cFileNameLength = inputProgram[i - 1].length() + 1;
+			argv[i] = new wchar_t[cFileNameLength];
+			mbstowcs(argv[i], inputProgram[i - 1].c_str(), cFileNameLength);
+		}
+
+		// Invoke python
+		Py_SetProgramName(argv[0]);
+		Py_Initialize();
+		PySys_SetArgv(argc, argv.data());
+
+		file = fopen(syminputC.c_str(), "r");
+
+		if (file == NULL) {
+			errs() << ERROR << "Bit code generation script not found!\n";
+			exit(1);
+		}
+
+		returnValue = PyRun_SimpleFile(file, syminputC.c_str());
+		Py_Finalize();
+
+		fclose(file);
+
+		// Release buffer
+		for (int i = 0; i < argc; i++) {
+			delete[] argv[i];
+		}
+
+		if (returnValue != 0) {
+			errs() << ERROR << "Failed to generate bit code!\n";
+			exit(1);
+		}
+	}
+
 	Json::Value StateProtectorPass::generateTestCasesForFunctions(std::vector<Function *> functions,
 																				size_t maxFunctionNameLength) {
 		Json::Value outputTestCases;
 		FILE *file;
-		int argc = inputProgram.size() + 2, returnValue, cFileNameLength = 0;
+		int argc = 3, returnValue;
 		std::vector<wchar_t*> argv(argc, nullptr);
 
+		// Generate bitcode only once
+		generateBitCodeForInputProgram();
+
 		// Generate input for the python script
-		argv[0] = new wchar_t[syminput.length() + 1];
-		mbstowcs(argv[0], syminput.c_str(), syminput.length() + 1);
+		argv[0] = new wchar_t[syminputBC.length() + 1];
+		mbstowcs(argv[0], syminputBC.c_str(), syminputBC.length() + 1);
 
 		argv[1] = new wchar_t[maxFunctionNameLength + 1];
-        
-        for (int i = 2; i < argc; i++) {
-            cFileNameLength = inputProgram[i - 2].length() + 1;
-            argv[i] = new wchar_t[cFileNameLength];
-            mbstowcs(argv[i], inputProgram[i - 2].c_str(), cFileNameLength);
-        }
+
+		argv[2] = new wchar_t[BCOUTPUTPATH.length() + 1];
+		mbstowcs(argv[2], BCOUTPUTPATH.c_str(), BCOUTPUTPATH.length() + 1);
 
 		for (auto function : functions) {
 			std::string functionName = function->getName();
@@ -242,21 +289,21 @@ namespace {
 			Py_Initialize();
 			PySys_SetArgv(argc, argv.data());
 
-			file = fopen(syminput.c_str(), "r");
+			file = fopen(syminputBC.c_str(), "r");
 
 			if (file == NULL) {
 				errs() << ERROR << "Test generation script not found!\n";
 				exit(1);
 			}
 
-			returnValue = PyRun_SimpleFile(file, syminput.c_str());
+			returnValue = PyRun_SimpleFile(file, syminputBC.c_str());
 			Py_Finalize();
 
 			fclose(file);
 
 			if (returnValue == 0) {
 				// Save intermediate results from parsing
-				Json::Value currentFunctionTestCases = parseFromFile(PYTHON_OUTPUT_PATH);
+				Json::Value currentFunctionTestCases = parseFromFile(PYTHONOUTPUTPATH);
 				outputTestCases[functionName] = currentFunctionTestCases;
 			} else {
 				errs() << WARNING << "Failed to generate test cases for function " << functionName << "\n";

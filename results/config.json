@@ -1,7 +1,8 @@
 {
-    "functions" : ["mul", "add", "sub","isValidLicenseKey", "addChar"],
-    "program" : "src/InterestingProgram.c",
+    "functionsRC" : ["mul", "add", "sub","isValidLicenseKey", "addChar"],
+    "program" : ["src/InterestingProgram.c"],
     "connectivity" : 2,
-    "syminput" : "../Docker/klee/syminputC.py",
+    "syminputC" : "../Docker/klee/syminputC.py",
+    "syminputBC" : "../Docker/klee/syminputBC.py",
     "verbose" : true
 }
