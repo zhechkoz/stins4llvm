@@ -7,7 +7,7 @@ BUILD = build/
 CXX = g++
 
 CXXFLAGS = -g -rdynamic
-CXXFLAGS_LLVM = -rdynamic -O3 $(LLVM_INCLUDES)
+CXXFLAGS_LLVM = -O3 $(LLVM_INCLUDES)
 
 LLVM_CONFIG_COMMAND = \
 		`/usr/bin/llvm-config-3.9 --cxxflags --libs` \
@@ -26,7 +26,7 @@ directories:
 	@ mkdir -p $(BUILD)
 
 $(BUILD)%.o: $(SOURCE)%.cpp
-	$(CXX) -c -fPIC -std=c++11 $(CXXFLAGS_LLVM) $(LLVM_CONFIG_COMMAND) $(PYTHON_INCUDES) $^ -o $@
+	$(CXX) -c -fPIC -std=c++11 $(CXXFLAGS) $(CXXFLAGS_LLVM) $(LLVM_CONFIG_COMMAND) $(PYTHON_INCUDES) $^ -o $@
 
 $(BUILD)libStateProtectorPass.so: $(BUILD)StateProtectorPass.o
 	$(CXX) -std=c++11 $(CXXFLAGS_LLVM) $(PYTHON_INCUDES) -shared $(LLVM_CONFIG_COMMAND) $(PYTHON_CONFIG_COMMAND) $^ -o $@
