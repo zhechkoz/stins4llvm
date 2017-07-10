@@ -5,6 +5,9 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/IRBuilder.h"
 
+#include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/Metadata.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/APFloat.h"
 
@@ -471,11 +474,11 @@ namespace {
 
 		return output;
 	}
-
+	
 	void StateProtectorPass::insertProtect(Module &M, Function *checker, Function *checkee) {
 		std::vector<Value *> args;
 		BasicBlock *firstBasicBlock = &checker->getEntryBlock();
-
+        
 		// Create block that calls the report function
 		BasicBlock *reportBlock = BasicBlock::Create(M.getContext(), "reportBlock", checker, firstBasicBlock);
 
@@ -524,9 +527,15 @@ namespace {
 				args.push_back(arg);
 				i++;
 			}
-
+			
 			// Create the checkee call with the arguments
 			checkeeCall = builder.CreateCall(checkee, args);
+		    
+		    // Insert "fake" debug location to make llvm happy
+			DISubprogram *d = checker->getSubprogram();
+            DebugLoc loc = DebugLoc::get(0, 0, d);
+			((Instruction *)checkeeCall)->setDebugLoc(loc);
+			
 			std::string testResult = pureFunctionsTestCases[checkee->getName()][std::to_string(j)][RESULT].asString();
 			result = createLLVMValue(&builder, testResult, checkee->getReturnType());
 

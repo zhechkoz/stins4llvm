@@ -15,6 +15,7 @@ rcPass="${build}libStateProtectorPass.so"
 
 # Pass' libraries and files
 rcLibrary="${build}libcheck.o"
+backtraceLibrary="-L/usr/lib/gcc/x86_64-linux-gnu/5 -lbacktrace"
 
 # Configurations
 config=""
@@ -89,7 +90,7 @@ clangFlags=$(jq -r 'select(.clangFlags != null) .clangFlags' $config)
 exitIfFail $?
 
 # Generate bc files
-${CLANG} -c -emit-llvm ${inputCFiles} $clangFlags -O0
+${CLANG} -c -g -emit-llvm ${inputCFiles} $clangFlags -O0
 exitIfFail $?
 
 ${LINK} $inputBCFiles -o "${build}${resultFile}.bc"
@@ -104,5 +105,5 @@ ${LLC} -filetype=obj "${build}${resultFile}-inst.bc"
 exitIfFail $?
 
 # Link
-${CXX} -rdynamic "${build}${resultFile}-inst.o" ${rcLibrary} -o ${build}${resultFile}
+${CXX} -g -rdynamic "${build}${resultFile}-inst.o" ${rcLibrary} ${backtraceLibrary} -o ${build}${resultFile}
 exitIfFail $?
