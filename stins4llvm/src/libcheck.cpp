@@ -1,9 +1,8 @@
-#include <algorithm>
 #include <cstring>
-#include <string>
+#include <cstdio>
 #include <ctime>
 #include <cstdlib>
-#include <vector>
+
 #include "backtrace.h"
 #include "backtrace-supported.h"
 
@@ -12,7 +11,19 @@
 #include <signal.h>
 
 #define DEBUG 1
+#define STACKTRACE 256
 #define REPORT 2
+
+
+struct info {
+    char *function;
+};
+
+struct bdata {
+    struct info *all;
+    size_t index;
+    size_t max;
+};
 
 extern "C" void initRandom() {
 	std::srand(std::time(0));
@@ -22,26 +33,62 @@ extern "C" bool cmpstr(char *first, char *second) {
 	return std::strcmp(first, second);
 }
 
+static void backtraceErrorCallback(void *vdata, const char *msg, int errnum) {
+    fprintf (stderr, "%s", msg);
+    if (errnum > 0)
+        fprintf (stderr, ": %s", strerror (errnum));
+    fprintf (stderr, "\n");
+}
+
 static int collectBacktrace (void *vdata, uintptr_t pc,
 	      const char *filename, int lineno, const char *function) {
+    struct bdata *data = (struct bdata *) vdata;
+    struct info *p;
 
-    std::vector<std::string> *data = (std::vector<std::string> *) vdata;
+    if (data->index >= data->max) {
+        fprintf (stderr, "Callback called too many times\n");
+        return 1;
+    }
+
+    p = &data->all[data->index];
     if (function != NULL) {
-        data->push_back(function);
-    } 
+        p->function = strdup(function);
+        ++data->index;
+    }
     
     return 0;
 }
 
+static void backtraceCallbackCreate(void *data, const char *msg, int errnum) {
+    fprintf (stderr, "%s", msg);
+    if (errnum > 0)
+        fprintf (stderr, ": %s", strerror (errnum));
+    fprintf (stderr, "\n");
+
+    exit (EXIT_FAILURE);
+}
+
+backtrace_state *state = backtrace_create_state("", BACKTRACE_SUPPORTED, backtraceCallbackCreate, NULL);
 // Calculate backtrace
 extern "C" bool checkTrace(char *functionName) {
-	std::vector<std::string> trace;
-	backtrace_state *state = backtrace_create_state ("", BACKTRACE_SUPPORTS_THREADS, NULL, NULL);
-	backtrace_full (state, 0, collectBacktrace, NULL, &trace); // Skip the first two frames
+	struct info all[STACKTRACE];
+    struct bdata data = { &all[0], 0, STACKTRACE };
     
-	bool functionOnStack = std::find(trace.begin(), trace.end(), functionName) != trace.end();
+	backtrace_full(state, 0, collectBacktrace, backtraceErrorCallback, &data);
+    
+    bool found = false;
+    
+    for (unsigned int i = 0; i < data.index; i++) {
+        if (strcmp(data.all[i].function, functionName) == 0) {
+            found = true;
+        }
+    }
 
-	return functionOnStack;
+    for (unsigned int i = 0; i < data.index; i++) {
+        free(data.all[i].function);    
+    }
+    
+	return found;
 }
 
 int generateRandom10() {
