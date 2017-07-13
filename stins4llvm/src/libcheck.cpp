@@ -81,6 +81,7 @@ extern "C" bool checkTrace(char *functionName) {
     for (unsigned int i = 0; i < data.index; i++) {
         if (strcmp(data.all[i].function, functionName) == 0) {
             found = true;
+            break;
         }
     }
 
