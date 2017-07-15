@@ -96,7 +96,7 @@ namespace {
 
 		syminputC = config["syminputC"].asString();
 		syminputBC = config["syminputBC"].asString();
-		connectivity = config["connectivity"].asInt();
+		connectivity = config["connectivityRC"].asInt();
 		verbose = config["verbose"].asBool();
 
 		for (auto function : config["functionsRC"]) {
