@@ -30,7 +30,7 @@ def run_KLEE(functionname, bcfile):
         out = p.stdout.decode('unicode_escape')
 
         with open(path.join('/tmp', 'klee.json'), 'w', encoding='utf-8') as f:
-        	f.write(parse(out))
+            f.write(parse(out))
         # input("Press enter to delete " + tmpdir)
 
 def packerParser(size, parameter):

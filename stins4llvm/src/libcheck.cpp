@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <signal.h>
 
-#define DEBUG 1
+#define DEBUG 0
 #define STACKTRACE 256
 #define REPORT 2
 
