@@ -98,7 +98,7 @@ exitIfFail $?
 rm $inputBCFiles 2> /dev/null
 
 # Protect
-RC  
+RC
 
 # Generate object
 ${LLC} -filetype=obj "${build}${resultFile}-inst.bc"

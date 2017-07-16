@@ -2,7 +2,7 @@
     "functionsRC" : ["mul", "add", "sub","isValidLicenseKey", "addChar"],
     "program" : ["src/InterestingProgram.c"],
     "binary" : "InterestingProgram-rewritten",
-    "clangFlags" : "-W -Wall -Wextra -ansi -pedantic -O2 -Wno-unused-function",
+    "clangFlags" : "-W -Wall -Wextra -pedantic -O2 -Wno-unused-function",
     "connectivityRC" : 2,
     "syminputC" : "../Docker/klee/syminputC.py",
     "syminputBC" : "../Docker/klee/syminputBC.py",

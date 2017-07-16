@@ -29,7 +29,7 @@ $(BUILD)%.o: $(SOURCE)%.cpp
 	$(CXX) -c -fPIC -std=c++11 $(CXXFLAGS) $(CXXFLAGS_LLVM) $(LLVM_CONFIG_COMMAND) $(PYTHON_INCUDES) $^ -o $@
 
 $(BUILD)libStateProtectorPass.so: $(BUILD)StateProtectorPass.o
-	$(CXX) -std=c++11 $(CXXFLAGS_LLVM) $(PYTHON_INCUDES) -shared $(LLVM_CONFIG_COMMAND) $(PYTHON_CONFIG_COMMAND) $^ -o $@
+	$(CXX) $(CXXFLAGS_LLVM) $(PYTHON_INCUDES) -shared $(LLVM_CONFIG_COMMAND) $(PYTHON_CONFIG_COMMAND) $^ -o $@
 
 .PHONY: clean
 clean:
