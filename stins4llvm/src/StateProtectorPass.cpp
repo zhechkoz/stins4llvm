@@ -289,6 +289,7 @@ namespace {
 
         for (auto function : functions) {
             std::string functionName = function->getName();
+            Json::Value currentFunctionTestCases = Json::Value::null;
 
             mbstowcs(argv[1], functionName.c_str(), functionName.length() + 1);
 
@@ -311,9 +312,13 @@ namespace {
 
             if (returnValue == 0) {
                 // Save intermediate results from parsing
-                Json::Value currentFunctionTestCases = parseFromFile(PYTHONOUTPUTPATH);
-                outputTestCases[functionName] = currentFunctionTestCases;
-            } else {
+                currentFunctionTestCases = parseFromFile(PYTHONOUTPUTPATH);
+                if (!currentFunctionTestCases.empty()) {
+                    outputTestCases[functionName] = currentFunctionTestCases;
+                }
+            }
+
+            if (returnValue != 0 || currentFunctionTestCases.empty()) {
                 errs() << WARNING << "Failed to generate test cases for function " << functionName
                        << "\n";
             }
