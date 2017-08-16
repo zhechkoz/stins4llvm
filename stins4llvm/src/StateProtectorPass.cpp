@@ -334,7 +334,8 @@ namespace {
 
     Json::Value StateProtectorPass::parseFromFile(std::string fileName) {
         Json::Value root;
-        Json::Reader reader;
+        Json::CharReaderBuilder reader;
+        std::string errors;
 
         std::ifstream file(fileName);
 
@@ -343,11 +344,11 @@ namespace {
             exit(1);
         }
 
-        bool parsingSuccessful = reader.parse(file, root, false);
+        bool parsingSuccessful = Json::parseFromStream(reader, file, &root, &errors);
 
         if (!parsingSuccessful) {
             errs() << WARNING << "Failed to parse file " << fileName << " correctly!\n"
-                   << reader.getFormattedErrorMessages() << "\n";
+                   << errors << "\n";
         }
 
         file.close();
