@@ -1,10 +1,10 @@
 {
-    "functionsRC" : ["mul", "add", "sub","isValidLicenseKey", "addChar"],
+    "functionsRC" : ["mul", "add", "sub", "isValidLicenseKey", "addChar"],
     "program" : ["src/InterestingProgram.c"],
     "binary" : "InterestingProgram-rewritten",
     "clangFlags" : "-W -Wall -Wextra -pedantic -O2 -Wno-unused-function",
     "connectivityRC" : 2,
-    "syminputC" : "../Docker/klee/syminputC.py",
-    "syminputBC" : "../Docker/klee/syminputBC.py",
+    "syminputC" : "syminput/syminputC.py",
+    "syminputBC" : "syminput/syminputBC.py",
     "verbose" : true
 }

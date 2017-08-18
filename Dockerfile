@@ -3,14 +3,22 @@ FROM ubuntu:16.04
 # Install dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
+    bc bison \
     cmake \
+    curl \
+    flex \
     git \
     jq \
+    libboost-all-dev libcap-dev libncurses5-dev \
     locales \
     nano \
+    python-minimal python3 python3.5-dev \
+    subversion \
     sudo \
+    unzip \
     vim \
-    wget && \
+    wget \
+    zlib1g-dev && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Specify locales
@@ -34,14 +42,6 @@ RUN apt-get update && apt-get install -y \
     libfuzzer-3.9-dev && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Install angr
-RUN apt-get update && apt-get install -y \
-    libffi-dev \
-    python \
-    python-pip && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-RUN pip install angr
-
 # Add a non-root user
 RUN useradd --create-home --shell /bin/bash sip && \
     adduser sip sudo && \
@@ -49,49 +49,22 @@ RUN useradd --create-home --shell /bin/bash sip && \
 
 WORKDIR /home/sip
 
-# Install KLEE dependencies
-RUN apt-get update && apt-get install -y \
-    bc bison \
-    curl flex \
-    libboost-all-dev libcap-dev libncurses5-dev \
-    python-minimal \
-    subversion \
-    unzip \
-    zlib1g-dev && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
 # Build KLEE
-RUN git clone https://github.com/tum-i22/klee-install.git && \
-    mkdir build && \
+RUN git clone --depth 1 https://github.com/tum-i22/klee-install.git && \
+    mkdir -p build && \
     sh ./klee-install/ubuntu.sh /home/sip/build/
 
-# Build KLEE opt passes
-RUN apt-get update && apt-get install -y \
-    python3 \
-    python3.5-dev \
-    python3-pip && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-WORKDIR /home/sip/build
-RUN git clone -b ktest-result --depth 1 https://github.com/tum-i22/macke-opt-llvm.git
-WORKDIR /home/sip/build/macke-opt-llvm
-RUN make -j 2 \
+RUN git clone -b ktest-result --depth 1 https://github.com/tum-i22/macke-opt-llvm.git /home/sip/build/macke-opt-llvm && \
+    make -C /home/sip/build/macke-opt-llvm -j 2 \
     LLVM_SRC_PATH=/home/sip/build/llvm \
     KLEE_BUILDDIR=/home/sip/build/klee/Release+Asserts \
-    KLEE_INCLUDES=/home/sip/build/klee/include/
+    KLEE_INCLUDES=/home/sip/build/klee/include
 
-WORKDIR /home/sip
-
-# Install radare2
-RUN git clone https://github.com/radare/radare2 && \
-    sh /home/sip/radare2/sys/install.sh && \
-    pip3 install r2pipe
-
-# Install project dependencies
-RUN git clone https://github.com/open-source-parsers/jsoncpp.git
-WORKDIR /home/sip/jsoncpp/build
-RUN cmake .. && \
-    make -j 2 install
+# Install jsoncpp
+RUN git clone --depth 1 --branch 1.8.1  https://github.com/open-source-parsers/jsoncpp.git && \
+    mkdir -p /home/sip/jsoncpp/build && \
+    cmake -H/home/sip/jsoncpp -B/home/sip/jsoncpp/build && \
+    make -C /home/sip/jsoncpp/build -j 2 install
 
 # Switch to user sip
 RUN chown -R sip:sip /home/sip/
@@ -99,7 +72,7 @@ USER sip
 WORKDIR /home/sip
 
 # Set up project repo
-RUN git clone https://github.com/johanneszi/SIP.git
+RUN git clone https://github.com/zhechkoz/stins4llvm.git
 
-WORKDIR /home/sip/SIP/phase3/stins4llvm
+WORKDIR /home/sip/stins4llvm
 RUN make
