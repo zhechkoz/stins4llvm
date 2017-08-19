@@ -34,5 +34,6 @@ The workflow of **StIns4LLVM** consists of three main phases. Firstly, it genera
 - [KLEE](https://github.com/tum-i22/klee-install)
 - [Passes for LLVM operations from MACKE](https://github.com/tum-i22/macke-opt-llvm)
 - [jsoncpp >=1.8](https://github.com/open-source-parsers/jsoncpp)
+- [jq](https://stedolan.github.io/jq/)
 
 ### We strongly recommend using the provided Dockerfile
